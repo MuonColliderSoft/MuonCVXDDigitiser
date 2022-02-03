@@ -31,6 +31,9 @@
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
 
+#include "marlin/AIDAProcessor.h"
+#include "AIDA/IHistogramFactory.h"
+
 #include <TFile.h>
 
 using CLHEP::RandGauss;
@@ -45,6 +48,9 @@ using dd4hep::rec::SurfaceMap;
 using dd4hep::rec::ISurface;
 using dd4hep::rec::Vector2D;
 using dd4hep::rec::Vector3D;
+
+using marlin::AIDAProcessor;
+using AIDA::IHistogramFactory;
 
 MuonCVXDRealDigitiser aMuonCVXDRealDigitiser ;
 
@@ -194,10 +200,9 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
                                "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)",
                                sensor_type,
                                int(1));
-    registerProcessorParameter("StatisticsFilename",
-                               "File name for statistics (None for disabling the feature)",
-                               stat_filename,
-                               std::string("None"));
+    registerProcessorParameter("CreateHistos",
+                               "Enable the creation of histograms for the digitizer",
+                               create_stats, true);
 }
 
 
@@ -211,23 +216,23 @@ void MuonCVXDRealDigitiser::init()
     _nEvt = 0 ;
     _totEntries = 0;
 
-    create_stats = stat_filename.compare(std::string { "None" }) != 0;
-
     if (create_stats)
     {
+        IHistogramFactory* histoF = AIDAProcessor::histogramFactory(this);
+
         double max_histox = std::max(_pixelSizeX, _pixelSizeY) * 10;
-        signal_dHisto = new TH1F("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);
-        bib_dHisto = new TH1F("BIBHitDistance", "BIB Hit offset", 1000, 0., max_histox);
-        signal_cSizeHisto = new TH1F("SignalClusterSize", "Signal Cluster Size", 1000, 0., 50);
-        signal_xSizeHisto = new TH1F("SignalClusterSizeinX", "Signal Cluster Size in x", 1000, 0., 20);
-        signal_ySizeHisto = new TH1F("SignalClusterSizeinY", "Signal Cluster Size in y", 1000, 0., 20);
-        signal_zSizeHisto = new TH1F("SignalClusterSizeinZ", "Signal Cluster Size in z", 1000, 0., 20);
-        signal_eDepHisto = new TH1F("SignalClustereDep", "Signal Cluster Energy (MeV)", 1000, 0., 10e-1);
-        bib_cSizeHisto = new TH1F("BIBClusterSize", "BIB Cluster Size", 1000, 0., 50);
-        bib_xSizeHisto = new TH1F("BIBClusterSizeinX", "BIB Cluster Size in x", 1000, 0., 20);
-        bib_ySizeHisto = new TH1F("BIBClusterSizeinY", "BIB Cluster Size in y", 1000, 0., 20);
-        bib_zSizeHisto = new TH1F("BIBClusterSizeinZ", "BIB Cluster Size in z", 1000, 0., 20);
-        bib_eDepHisto = new TH1F("BIBClusterSizeinZ", "BIB Cluster Energy (MeV)", 1000, 0., 10e-1);
+        signal_dHisto = histoF->createHistogram1D("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);
+        bib_dHisto = histoF->createHistogram1D("BIBHitDistance", "BIB Hit offset", 1000, 0., max_histox);
+        signal_cSizeHisto = histoF->createHistogram1D("SignalClusterSize", "Signal Cluster Size", 1000, 0., 50);
+        signal_xSizeHisto = histoF->createHistogram1D("SignalClusterSizeinX", "Signal Cluster Size in x", 1000, 0., 20);
+        signal_ySizeHisto = histoF->createHistogram1D("SignalClusterSizeinY", "Signal Cluster Size in y", 1000, 0., 20);
+        signal_zSizeHisto = histoF->createHistogram1D("SignalClusterSizeinZ", "Signal Cluster Size in z", 1000, 0., 20);
+        signal_eDepHisto = histoF->createHistogram1D("SignalClusterEDep", "Signal Cluster Energy (MeV)", 1000, 0., 10e-1);
+        bib_cSizeHisto = histoF->createHistogram1D("BIBClusterSize", "BIB Cluster Size", 1000, 0., 50);
+        bib_xSizeHisto = histoF->createHistogram1D("BIBClusterSizeinX", "BIB Cluster Size in x", 1000, 0., 20);
+        bib_ySizeHisto = histoF->createHistogram1D("BIBClusterSizeinY", "BIB Cluster Size in y", 1000, 0., 20);
+        bib_zSizeHisto = histoF->createHistogram1D("BIBClusterSizeinZ", "BIB Cluster Size in z", 1000, 0., 20);
+        bib_eDepHisto = histoF->createHistogram1D("BIBClusterEDep", "BIB Cluster Energy (MeV)", 1000, 0., 10e-1);
     }
 }
 
@@ -512,19 +517,19 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                       // cluster size histograms
                       if ( !sig )
                       {
-                        //bib_cSizeHisto->Fill(recoHit->getRawHits().size());
-                        bib_cSizeHisto->Fill(digiHit.size);
-                        bib_xSizeHisto->Fill(maxx-minx);
-                        bib_ySizeHisto->Fill(maxy-miny);
-                        bib_zSizeHisto->Fill(maxz-minz);
-                        bib_eDepHisto->Fill(1000*recoHit->getEDep());
+                        //bib_cSizeHisto->fill(recoHit->getRawHits().size());
+                        bib_cSizeHisto->fill(digiHit.size);
+                        bib_xSizeHisto->fill(maxx-minx);
+                        bib_ySizeHisto->fill(maxy-miny);
+                        bib_zSizeHisto->fill(maxz-minz);
+                        bib_eDepHisto->fill(1000*recoHit->getEDep());
                       } else {
-                        //signal_cSizeHisto->Fill(recoHit->getRawHits().size());
-                        signal_cSizeHisto->Fill(digiHit.size);
-                        signal_xSizeHisto->Fill(maxx-minx);
-                        signal_ySizeHisto->Fill(maxy-miny);
-                        signal_zSizeHisto->Fill(maxz-minz);
-                        signal_eDepHisto->Fill(1000*recoHit->getEDep());
+                        //signal_cSizeHisto->fill(recoHit->getRawHits().size());
+                        signal_cSizeHisto->fill(digiHit.size);
+                        signal_xSizeHisto->fill(maxx-minx);
+                        signal_ySizeHisto->fill(maxy-miny);
+                        signal_zSizeHisto->fill(maxz-minz);
+                        signal_eDepHisto->fill(1000*recoHit->getEDep());
                       }
                    }
                 }
@@ -590,11 +595,11 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
             
             if (simTrkHit->isOverlay())
             {
-                bib_dHisto->Fill(sqrt(tmpf));
+                bib_dHisto->fill(sqrt(tmpf));
             }
             else
             {
-                signal_dHisto->Fill(sqrt(tmpf));
+                signal_dHisto->fill(sqrt(tmpf));
             }
         }
     }
@@ -606,39 +611,6 @@ void MuonCVXDRealDigitiser::check(LCEvent *evt)
 void MuonCVXDRealDigitiser::end()
 {
     streamlog_out(DEBUG) << "   end called  " << std::endl;
-
-    if (create_stats)
-    {
-        TFile statFile = TFile(stat_filename.c_str(), "recreate");
-        statFile.WriteObject(signal_dHisto, "Signal offset");
-        statFile.WriteObject(bib_dHisto, "BIB offset");
-        statFile.WriteObject(signal_cSizeHisto, "Signal cluster size");
-        statFile.WriteObject(signal_xSizeHisto, "Signal cluster size in x");
-        statFile.WriteObject(signal_ySizeHisto, "Signal cluster size in y");
-        statFile.WriteObject(signal_zSizeHisto, "Signal cluster size in z");
-        statFile.WriteObject(signal_eDepHisto, "Signal energy");
-        statFile.WriteObject(bib_cSizeHisto, "BIB cluster size");
-        statFile.WriteObject(bib_xSizeHisto, "BIB cluster size in x");
-        statFile.WriteObject(bib_ySizeHisto, "BIB cluster size in y");
-        statFile.WriteObject(bib_zSizeHisto, "BIB cluster size in z");
-        statFile.WriteObject(bib_eDepHisto, "BIB energy");
-        statFile.Flush();
-        statFile.Close();
-    }
-
-    if (signal_dHisto != nullptr) delete(signal_dHisto);
-    if (bib_dHisto != nullptr) delete(bib_dHisto);
-    if (signal_cSizeHisto != nullptr) delete(signal_cSizeHisto);
-    if (signal_xSizeHisto != nullptr) delete(signal_xSizeHisto);
-    if (signal_ySizeHisto != nullptr) delete(signal_ySizeHisto);
-    if (signal_zSizeHisto != nullptr) delete(signal_zSizeHisto);
-    if (signal_eDepHisto != nullptr) delete(signal_eDepHisto);
-    if (bib_cSizeHisto != nullptr) delete(bib_cSizeHisto);
-    if (bib_xSizeHisto != nullptr) delete(bib_xSizeHisto);
-    if (bib_ySizeHisto != nullptr) delete(bib_ySizeHisto);
-    if (bib_zSizeHisto != nullptr) delete(bib_zSizeHisto);
-    if (bib_eDepHisto != nullptr) delete(bib_eDepHisto);
-
 }
 
 void MuonCVXDRealDigitiser::PrintGeometryInfo()

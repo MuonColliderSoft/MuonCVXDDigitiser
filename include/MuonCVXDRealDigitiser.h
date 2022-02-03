@@ -15,9 +15,10 @@
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 
-#include <TH1.h>
+#include "AIDA/IHistogram1D.h"
 
 using marlin::Processor;
+using AIDA::IHistogram1D;
 
 struct IonisationPoint
 {
@@ -169,20 +170,19 @@ protected:
     std::vector<float> _layerLadderWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
 
-    std::string stat_filename;
     bool create_stats;
-    TH1F* signal_dHisto;
-    TH1F* bib_dHisto;
-    TH1F* signal_cSizeHisto;
-    TH1F* signal_xSizeHisto;
-    TH1F* signal_ySizeHisto;
-    TH1F* signal_zSizeHisto;
-    TH1F* signal_eDepHisto;
-    TH1F* bib_cSizeHisto;
-    TH1F* bib_xSizeHisto;
-    TH1F* bib_ySizeHisto;
-    TH1F* bib_zSizeHisto;
-    TH1F* bib_eDepHisto;
+    IHistogram1D* signal_dHisto;
+    IHistogram1D* bib_dHisto;
+    IHistogram1D* signal_cSizeHisto;
+    IHistogram1D* signal_xSizeHisto;
+    IHistogram1D* signal_ySizeHisto;
+    IHistogram1D* signal_zSizeHisto;
+    IHistogram1D* signal_eDepHisto;
+    IHistogram1D* bib_cSizeHisto;
+    IHistogram1D* bib_xSizeHisto;
+    IHistogram1D* bib_ySizeHisto;
+    IHistogram1D* bib_zSizeHisto;
+    IHistogram1D* bib_eDepHisto;
 
 };
 
