@@ -61,6 +61,7 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
     _totEntries(0),
     _barrelID(0),
     create_stats(false),
+    cluster_loadHisto(nullptr),
     signal_dHisto(nullptr),
     bib_dHisto(nullptr),
     signal_cSizeHisto(nullptr),
@@ -221,6 +222,7 @@ void MuonCVXDRealDigitiser::init()
         IHistogramFactory* histoF = AIDAProcessor::histogramFactory(this);
 
         double max_histox = std::max(_pixelSizeX, _pixelSizeY) * 10;
+        cluster_loadHisto = histoF->createHistogram1D("ClusterLoad", "Number of simHit", 10, 0, 10);
         signal_dHisto = histoF->createHistogram1D("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);
         bib_dHisto = histoF->createHistogram1D("BIBHitDistance", "BIB Hit offset", 1000, 0., max_histox);
         signal_cSizeHisto = histoF->createHistogram1D("SignalClusterSize", "Signal Cluster Size", 1000, 0., 50);
@@ -329,10 +331,6 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     lcFlag.setBit(LCIO::LCREL_WEIGHTED);
     relCol->setFlag(lcFlag.getFlag());
 
-    std::size_t RELHISTOSIZE { 10 };
-    vector<std::size_t> relHisto {};
-    relHisto.assign(RELHISTOSIZE, 0);
-
     HitTemporalIndexes t_index { STHcol };
 
     for (int layer = 0; layer < _numberOfLayers; layer++)
@@ -409,8 +407,6 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 _map
             };
 
-            vector<std::size_t> histo_buffer {};
-
             while(t_window.active())
             {
                 t_window.process();
@@ -423,7 +419,6 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 reco_buffer.assign(hit_buffer.size(), nullptr);
 
                 vector<LCRelationImpl*> rel_buffer;
-                histo_buffer.assign(RELHISTOSIZE, 0);
 
                 int idx = 0;
                 for (SegmentDigiHit& digiHit : hit_buffer)
@@ -504,38 +499,37 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                         rel_buffer.push_back(t_rel);
                     }
 
-                    if (digiHit.sim_hits.size() < RELHISTOSIZE)
-                    {
-                        histo_buffer[digiHit.sim_hits.size()]++;
-                    }
-
                     reco_buffer[idx] = recoHit;
                     idx++;
 
                     if (create_stats)
+#pragma omp critical
                     {
-                      // cluster size histograms
-                      if ( !sig )
-                      {
-                        //bib_cSizeHisto->fill(recoHit->getRawHits().size());
-                        bib_cSizeHisto->fill(digiHit.size);
-                        bib_xSizeHisto->fill(maxx-minx);
-                        bib_ySizeHisto->fill(maxy-miny);
-                        bib_zSizeHisto->fill(maxz-minz);
-                        bib_eDepHisto->fill(1000*recoHit->getEDep());
-                      } else {
-                        //signal_cSizeHisto->fill(recoHit->getRawHits().size());
-                        signal_cSizeHisto->fill(digiHit.size);
-                        signal_xSizeHisto->fill(maxx-minx);
-                        signal_ySizeHisto->fill(maxy-miny);
-                        signal_zSizeHisto->fill(maxz-minz);
-                        signal_eDepHisto->fill(1000*recoHit->getEDep());
-                      }
-                   }
+                        cluster_loadHisto->fill(digiHit.sim_hits.size());
+                        // cluster size histograms
+                        if (!sig)
+                        {
+                            //bib_cSizeHisto->fill(recoHit->getRawHits().size());
+                            bib_cSizeHisto->fill(digiHit.size);
+                            bib_xSizeHisto->fill(maxx - minx);
+                            bib_ySizeHisto->fill(maxy - miny);
+                            bib_zSizeHisto->fill(maxz - minz);
+                            bib_eDepHisto->fill(1000 * recoHit->getEDep());
+                        }
+                        else
+                        {
+                            //signal_cSizeHisto->fill(recoHit->getRawHits().size());
+                            signal_cSizeHisto->fill(digiHit.size);
+                            signal_xSizeHisto->fill(maxx - minx);
+                            signal_ySizeHisto->fill(maxy - miny);
+                            signal_zSizeHisto->fill(maxz - minz);
+                            signal_eDepHisto->fill(1000 * recoHit->getEDep());
+                        }
+                    }
                 }
 
                 if (reco_buffer.size() > 0)
-#pragma omp critical               
+#pragma omp critical
                 {
                     for(TrackerHitPlaneImpl* recoHit : reco_buffer)
                     {
@@ -559,10 +553,6 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     {
                         relCol->addElement(rel_item);
                     }
-                    for (std::size_t k = 0; k < RELHISTOSIZE; k++)
-                    {
-                        relHisto[k] += histo_buffer[k];
-                    }
                 }
             }
 
@@ -572,14 +562,6 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     streamlog_out(MESSAGE) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
     evt->addCollection(THcol, _outputCollectionName.c_str());
     evt->addCollection(relCol, _colVTXRelation.c_str());
-    int count = 0;
-      streamlog_out(DEBUG) << "Hit relation histogram:" << std::endl;
-      for (std::size_t k = 0; k < RELHISTOSIZE; k++)
-      {
-        streamlog_out(DEBUG) << k << " " << relHisto[k] << std::endl;
-        count += relHisto[k];
-      }
-      streamlog_out(DEBUG) << "> " << THcol->getNumberOfElements() - count << std::endl;
 
     if (create_stats)
     {
