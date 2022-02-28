@@ -172,6 +172,8 @@ protected:
 
     bool create_stats;
     IHistogram1D* cluster_loadHisto;
+    IHistogram1D* cluster_diffHisto;
+    IHistogram1D* cluster_pixDiffHisto;
     IHistogram1D* signal_dHisto;
     IHistogram1D* bib_dHisto;
     IHistogram1D* signal_cSizeHisto;

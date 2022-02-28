@@ -34,8 +34,6 @@
 #include "marlin/AIDAProcessor.h"
 #include "AIDA/IHistogramFactory.h"
 
-#include <TFile.h>
-
 using CLHEP::RandGauss;
 using CLHEP::RandPoisson;
 using CLHEP::RandFlat;
@@ -62,6 +60,8 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
     _barrelID(0),
     create_stats(false),
     cluster_loadHisto(nullptr),
+    cluster_diffHisto(nullptr),
+    cluster_pixDiffHisto(nullptr),
     signal_dHisto(nullptr),
     bib_dHisto(nullptr),
     signal_cSizeHisto(nullptr),
@@ -222,7 +222,9 @@ void MuonCVXDRealDigitiser::init()
         IHistogramFactory* histoF = AIDAProcessor::histogramFactory(this);
 
         double max_histox = std::max(_pixelSizeX, _pixelSizeY) * 10;
-        cluster_loadHisto = histoF->createHistogram1D("ClusterLoad", "Number of simHit", 10, 0, 10);
+        cluster_loadHisto = histoF->createHistogram1D("ClusterLoad", "Number of simhits for cluster", 10, 0, 10);
+        cluster_diffHisto = histoF->createHistogram1D("ClusterDiffusion", "Number of clusters for simhit", 10, 0, 10);
+        cluster_pixDiffHisto = histoF->createHistogram1D("PixelDiffusion", "Number of sensors for simhit", 10, 0, 10);
         signal_dHisto = histoF->createHistogram1D("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);
         bib_dHisto = histoF->createHistogram1D("BIBHitDistance", "BIB Hit offset", 1000, 0., max_histox);
         signal_cSizeHisto = histoF->createHistogram1D("SignalClusterSize", "Signal Cluster Size", 1000, 0., 50);
@@ -565,6 +567,11 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
 
     if (create_stats)
     {
+        using RecoHitMap = std::unordered_set<TrackerHitPlaneImpl*>;
+        using SimHitMap = std::unordered_map<SimTrackerHit*, RecoHitMap>;
+
+        SimHitMap rrel_map {};
+
         for (int i = 0; i < relCol->getNumberOfElements(); ++i)
         {
             LCRelationImpl* hitRel = dynamic_cast<LCRelationImpl*>(relCol->getElementAt(i));
@@ -582,6 +589,25 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
             else
             {
                 signal_dHisto->fill(sqrt(tmpf));
+            }
+
+            if (rrel_map.find(simTrkHit) == rrel_map.end())
+            {
+                RecoHitMap tmpset {};
+                rrel_map.emplace(simTrkHit, tmpset);
+            }
+            rrel_map[simTrkHit].emplace(recoHit);
+        }
+
+        for (auto item : rrel_map)
+        {
+            cluster_diffHisto->fill(item.second.size());
+
+            std::unordered_set<lcio::long64> cell_set;
+            for (TrackerHitPlaneImpl* th_item : item.second)
+            {
+                cell_set.emplace(cellid_decoder(th_item)["sensor"].value());
+                cluster_pixDiffHisto->fill(cell_set.size());
             }
         }
     }
