@@ -561,6 +561,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
             delete sensor;
         }
     }
+    streamlog_out(MESSAGE) << "Number of processed hits: " << STHcol->getNumberOfElements()  << std::endl;
     streamlog_out(MESSAGE) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
     evt->addCollection(THcol, _outputCollectionName.c_str());
     evt->addCollection(relCol, _colVTXRelation.c_str());
