@@ -287,9 +287,18 @@ void MuonCVXDRealDigitiser::processRunHeader(LCRunHeader* run)
 
         _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
 
-        _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
+        if (z_layout.sensorsPerLadder != 0)
+        {
+            _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
 
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
+            _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm;
+        }
+        else
+        {
+            _sensorsPerLadder[curr_layer] = 1;
+
+            _layerLadderLength[curr_layer] = z_layout.zHalfSensitive * 2.0 * dd4hep::cm / dd4hep::mm;
+        }
 
         _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;
 
