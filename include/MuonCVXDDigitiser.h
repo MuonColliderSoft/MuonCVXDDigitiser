@@ -75,6 +75,14 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 3.0) <br>
  * @param PoissonSmearing flag to switch on gaussian smearing of electrons collected on pixels <br>
  * (default parameter value : 1) <br>
+ * @param ThresholdSmearSigma: sigma of Gaussian used in threshold smearing <br>
+ * (default parameter value: 25) <br>
+ * @param ChargeDigitize flag to switch on charge discretization <br>
+ * (default parameter value: 1) <br>
+ * @param ChargeDigitizeNumBits number of bits used to determine bins for charge discretization <br>
+ * (default parameter value: 4) <br>
+ * @param ChargeDigitizeBinning binning scheme for charge discretization
+ * (default parameter value; 1) <br>
  * @param ElectronicEffects flag to switch on gaussian smearing of signal (electronic noise) <br>
  * (default parameter value : 1) <br>
  * @param ElectronicNoise electronic noise in electrons <br>
@@ -144,11 +152,24 @@ protected:
     double _deltaEne;
   	double _maxTrkLen;	
     int _PoissonSmearing;
+    int _thresholdSmearSigma;
+    int _DigitizeCharge;
+    int _ChargeDigitizeNumBits;
+    int _ChargeDigitizeBinning;
+    double _chargeMax;
+    int _DigitizeTime;
+    int _TimeDigitizeNumBits;
+    double _timeMax;
+    int _TimeDigitizeBinning;
+    double _timeSmearingSigma;
     int _electronicEffects;
     int _produceFullPattern;
 
     MyG4UniversalFluctuationForSi *_fluctuate;
 
+    // charge discretization
+    std::vector<double> _DigitizedBins{};
+    
     // geometry
     int _numberOfLayers;
     std::vector<int>   _laddersInLayer{};
@@ -166,7 +187,6 @@ protected:
     std::vector<float> _layerLadderWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
 
-
     // internal state
     int _currentLayer;
     int _currentLadder;
@@ -182,11 +202,20 @@ protected:
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
 
+    /* Charge digitization helpers */
     void ProduceIonisationPoints(SimTrackerHit *hit);
     void ProduceSignalPoints();
-    void ProduceHits(SimTrackerHitImplVec &simTrkVec);
+    void ProduceHits(SimTrackerHitImplVec &simTrkVec, SimTrackerHit &simHit);
     void PoissonSmearer(SimTrackerHitImplVec &simTrkVec);
     void GainSmearer(SimTrackerHitImplVec &simTrkVec);
+    void ApplyThreshold(SimTrackerHitImplVec &simTrkVec);
+    void ChargeDigitizer(SimTrackerHitImplVec &simTrkVec);
+
+    /* Time digitization helpers */
+    void TimeSmearer(SimTrackerHitImplVec &simTrkVec);
+    void TimeDigitizer(SimTrackerHitImplVec &simTrkVec);
+
+    /* Reconstruction of measurement and helpers */
     TrackerHitPlaneImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
     void TransformToLab(const int cellID, const double *xLoc, double *xLab);
     void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
@@ -195,6 +224,7 @@ protected:
     int GetPixelsInaRow();
     int GetPixelsInaColumn();
 
+    void LoadGeometry();
     void PrintGeometryInfo();
     double randomTail( const double qmin, const double qmax );
 };

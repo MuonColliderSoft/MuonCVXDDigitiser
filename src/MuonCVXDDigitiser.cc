@@ -53,7 +53,7 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                            "CollectionName", 
                            "Name of the SimTrackerHit collection",
                            _colName,
-                           std::string("VXDCollection"));
+                           std::string("VertexBarrelCollection"));
 
     registerOutputCollection(LCIO::TRACKERHITPLANE,
                             "OutputCollectionName", 
@@ -117,7 +117,12 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     registerProcessorParameter("Threshold",
                                "Cell Threshold in electrons",
                                _threshold,
-                               200.);
+                               500.);
+
+    registerProcessorParameter("ChargeMaximum",
+                               "Cell dynamic range in electrons",
+                               _chargeMax,
+                               15000.);
 
     registerProcessorParameter("SegmentLength",
                                "Segment Length in mm",
@@ -128,6 +133,51 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "Apply Poisson smearing of electrons collected on pixels",
                                _PoissonSmearing,
                                1);
+    
+    registerProcessorParameter("ThresholdSmearSigma",
+                               "sigma of Gaussian used in threshold smearing, in electrons",
+                               _thresholdSmearSigma, 
+                               25);
+    
+    registerProcessorParameter("DigitizeCharge",
+                               "Flag to enable Digitization of the charge collected on pixels",
+                               _DigitizeCharge,
+                               1);
+    
+    registerProcessorParameter("ChargeDigitizeNumBits",
+                               "Number of bits used to determine bins for charge discretization",
+                               _ChargeDigitizeNumBits,
+                               4);
+
+    registerProcessorParameter("ChargeDigitizeBinning",
+                               "Binning scheme used for charge discretization",
+                               _ChargeDigitizeBinning,
+                               1);
+
+    registerProcessorParameter("DigitizeTime",
+                                "Flag to enable digitization of timing information.",
+                                _DigitizeTime, 
+                                1);
+
+    registerProcessorParameter("TimeDigitizeNumBits",
+                               "Number of bits used to determine bins for time discretization",
+                               _TimeDigitizeNumBits,
+                               10);
+
+    registerProcessorParameter("TimeDigitizeBinning",
+                               "Binning scheme used for time discretization",
+                               _TimeDigitizeBinning,
+                               0);
+
+    registerProcessorParameter("TimeMaximum",
+                               "Cell dynamic range for timing measurement [ns]",
+                               _timeMax,
+                               10.000);
+
+    registerProcessorParameter("TimeSmearingSigma",
+                                "Effective intrinsic time measurement resolution effects (ns).",
+                                _timeSmearingSigma, 
+                                0.05);
 
     registerProcessorParameter("ElectronicEffects",
                                "Apply Electronic Effects",
@@ -137,7 +187,7 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     registerProcessorParameter("ElectronicNoise",
                                "electronic noise in electrons",
                                _electronicNoise,
-                               100.);
+                               80.);
 
     registerProcessorParameter("StoreFiredPixels",
                                "Store fired pixels",
@@ -180,6 +230,12 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 { 
     _nRun++ ;
 
+    LoadGeometry() ;
+}
+
+
+void MuonCVXDDigitiser::LoadGeometry()
+{
     Detector& theDetector = Detector::getInstance();
     DetElement vxBarrel = theDetector.detector(_subDetName);              // TODO check missing barrel
     ZPlanarData&  zPlanarData = *vxBarrel.extension<ZPlanarData>();       // TODO check missing extension
@@ -242,6 +298,15 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
     }
 
     PrintGeometryInfo();
+
+    // Bins for charge discretization
+    // FIXME: Will move to assign more dynamically 
+    if (_ChargeDigitizeNumBits == 3) _DigitizedBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
+    if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};
+    if (_ChargeDigitizeNumBits == 5) _DigitizedBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
+    if (_ChargeDigitizeNumBits == 6) _DigitizedBins = {500, 542, 572, 601, 629, 661, 692, 721, 750, 779, 812, 842, 877, 913, 946, 981, 1016, 1051, 1087, 1121, 1161, 1196, 1237, 1275, 1313, 1350, 1391, 1431, 1468, 1514, 1560, 1606, 1646, 1687, 1733, 1777, 1821, 1872, 1920, 1976, 2036, 2091, 2145, 2213, 2272, 2337, 2411, 2488, 2573, 2651, 2739, 2834, 2938, 3053, 3194, 3356, 3532, 3764, 4034, 4379, 4907, 5698, 6957, 9636};
+    if (_ChargeDigitizeNumBits == 8) _DigitizedBins = {500, 511, 523, 533, 542, 550, 556, 564, 570, 577, 585, 592, 598, 603, 610, 617, 624, 630, 638, 646, 654, 661, 668, 676, 684, 691, 699, 705, 712, 719, 724, 731, 738, 745, 752, 760, 767, 772, 780, 787, 795, 802, 810, 818, 826, 832, 839, 847, 856, 865, 874, 881, 889, 898, 906, 916, 924, 930, 938, 945, 955, 965, 971, 978, 986, 995, 1004, 1012, 1019, 1027, 1036, 1044, 1053, 1062, 1071, 1079, 1088, 1096, 1104, 1112, 1121, 1131, 1139, 1149, 1158, 1168, 1175, 1184, 1193, 1203, 1211, 1221, 1233, 1241, 1249, 1259, 1268, 1277, 1286, 1294, 1303, 1313, 1321, 1330, 1338, 1348, 1357, 1368, 1378, 1387, 1395, 1406, 1417, 1426, 1434, 1445, 1452, 1460, 1470, 1480, 1492, 1503, 1514, 1525, 1536, 1550, 1560, 1570, 1580, 1592, 1604, 1614, 1623, 1634, 1644, 1653, 1662, 1673, 1684, 1695, 1707, 1717, 1727, 1737, 1747, 1759, 1769, 1780, 1790, 1800, 1812, 1823, 1835, 1846, 1860, 1873, 1885, 1897, 1907, 1918, 1931, 1943, 1958, 1971, 1987, 2000, 2014, 2026, 2041, 2056, 2068, 2080, 2095, 2108, 2119, 2131, 2147, 2162, 2180, 2195, 2213, 2224, 2238, 2256, 2269, 2284, 2300, 2314, 2332, 2351, 2366, 2383, 2401, 2421, 2440, 2458, 2475, 2496, 2519, 2538, 2559, 2581, 2601, 2618, 2636, 2658, 2681, 2703, 2722, 2742, 2767, 2791, 2811, 2836, 2857, 2884, 2913, 2938, 2967, 2995, 3023, 3052, 3086, 3119, 3153, 3188, 3221, 3270, 3304, 3342, 3390, 3428, 3473, 3515, 3556, 3611, 3691, 3742, 3801, 3857, 3928, 3999, 4069, 4141, 4220, 4325, 4417, 4518, 4655, 4789, 4965, 5141, 5359, 5548, 5770, 6017, 6311, 6584, 7024, 7492, 8060, 8740, 9738, 11450, 14878, 23973};
+
 } 
 
 
@@ -256,12 +321,16 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     // - add digi parametrization for time measurement
     // - change position determination of cluster to analog cluster (w-avg of corner hits)
 
+    if ((_nEvt == 0) and (!_map)){
+        LoadGeometry() ;
+    }
+
     LCCollection * STHcol = nullptr;
     try
     {
         STHcol = evt->getCollection(_colName);
     }
-    catch( lcio::DataNotAvailableException ex )
+    catch( lcio::DataNotAvailableException &ex )
     {
         streamlog_out(WARNING) << _colName << " collection not available" << std::endl;
         STHcol = nullptr;
@@ -306,10 +375,16 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             float mcp_theta = simTrkHit->getPosition()[2] == 0 ? 3.1416/2 : std::atan(mcp_r/simTrkHit->getPosition()[2]);
             streamlog_out (DEBUG6) << "- Position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
             streamlog_out (DEBUG6) << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi << ", " << mcp_theta << std::endl;
-            if (simTrkHit->getMCParticle()==0){
-              streamlog_out (DEBUG6) << "- MCParticle not saved" << std::endl;}
-            else{
-              streamlog_out (DEBUG6) << "- MC particle pdg = " << simTrkHit->getMCParticle()->getPDG() << std::endl;}            streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
+            streamlog_out (DEBUG6) << "- MC particle pdg = ";
+            EVENT::MCParticle *mcp = simTrkHit->getMCParticle();
+            if (mcp) {
+                streamlog_out (DEBUG6) << simTrkHit->getMCParticle()->getPDG();
+            } else {
+                streamlog_out (DEBUG6) << " N.A.";
+            }
+            streamlog_out (DEBUG6) << std::endl;
+            streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
+
             streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
             streamlog_out (DEBUG6) << "- Quality = " << simTrkHit->getQuality() << std::endl;
 
@@ -321,23 +396,30 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             SimTrackerHitImplVec simTrkHitVec;
 
-            ProduceHits(simTrkHitVec);
+            ProduceHits(simTrkHitVec, *simTrkHit);
 
             if (_PoissonSmearing != 0) PoissonSmearer(simTrkHitVec);
 
             if (_electronicEffects != 0) GainSmearer(simTrkHitVec);
 
+	        ApplyThreshold(simTrkHitVec);
+
+	        if (_DigitizeCharge != 0) ChargeDigitizer(simTrkHitVec);
+
+            if (_timeSmearingSigma > 0) TimeSmearer(simTrkHitVec);
+
+            if (_DigitizeTime != 0) TimeDigitizer(simTrkHitVec);
+	    
+
+            //**************************************************************************
+            // Create reconstructed cluster object (TrackerHitImpl)
+            //**************************************************************************
             TrackerHitPlaneImpl *recoHit = ReconstructTrackerHit(simTrkHitVec);
             if (recoHit == nullptr)
             {
                 streamlog_out(DEBUG) << "Skip hit" << std::endl;
                 continue;
-            }
-
-            //**************************************************************************
-            // Store hit variables to TrackerHitImpl
-            //**************************************************************************
-
+            }       
             // hit's layer/ladder position does not change
             const int cellid0 = simTrkHit->getCellID0();
             const int cellid1 = simTrkHit->getCellID1();
@@ -348,8 +430,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             double xLab[3];
             TransformToLab( cellid0, recoHit->getPosition(), xLab);
             recoHit->setPosition( xLab );
-
-            recoHit->setTime(simTrkHit->getTime());
 
             SurfaceMap::const_iterator sI = _map->find( cellid0 ) ;
             const dd4hep::rec::ISurface* surf = sI->second ;
@@ -378,11 +458,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             recoHit->setU( u_direction ) ;
             recoHit->setV( v_direction ) ;
             
-            // ALE Does this make sense??? TO CHECK
-            // SP: need to set these inside ReconstructTrackerHit
-            //recoHit->setdU( _pixelSizeX / sqrt(12) );
-            //recoHit->setdV( _pixelSizeY / sqrt(12) );  
-
             //**************************************************************************
             // Set Relation to SimTrackerHit
             //**************************************************************************    
@@ -396,7 +471,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             streamlog_out (DEBUG7) << "Reconstructed pixel cluster:" << std::endl;
             streamlog_out (DEBUG7) << "- local position (x,y) = " << localPos[0] << "(Idx: " << localIdx[0] << "), " << localPos[1] << "(Idy: " << localIdx[1] << ")" << std::endl;
-            streamlog_out (DEBUG7) << "- global position (x,y,z, t) = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[2] << ", " << recoHit->getPosition()[3] << ", " << recoHit->getTime() << std::endl;
+            streamlog_out (DEBUG7) << "- global position (x,y,z, t) = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << ", " << recoHit->getTime() << std::endl;
             streamlog_out (DEBUG7) << "- charge = " << recoHit->getEDep() << "(True: " << simTrkHit->getEDep() << ")"  << std::endl;
             streamlog_out (DEBUG7) << "- incidence angles: theta = " << incidentTheta << ", phi = " << incidentPhi << std::endl;
 
@@ -407,8 +482,10 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
               for (int iS = 0; iS < (int)simTrkHitVec.size(); ++iS)
               {
                 SimTrackerHitImpl *sth = simTrkHitVec[iS];
-                float charge = sth->getEDep()  ;
-                if (charge >_threshold)
+                float charge = sth->getEDep();
+                //store hits that are above threshold. In case of _ChargeDiscretization, just check for a small non-zero value                
+                if ( ((_DigitizeCharge > 0) and (charge >1.0)) or
+                    (charge > _threshold) )
                 {
                    SimTrackerHitImpl *newsth = new SimTrackerHitImpl();
                    // hit's layer/ladder position is the same for all fired points 
@@ -418,13 +495,12 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                    const double *sLab;
                    //TransformToLab(cellid0, sth->getPosition(), sLab);
                    sLab = sth->getPosition();
-                   double localPos[3];
-                   localPos[0] = sLab[0] / _pixelSizeX;
-                   localPos[1] = sLab[1] / _pixelSizeY;
-                   newsth->setPosition(localPos);
+                   double pixelPos[3];
+                   pixelPos[0] = sLab[0] / _pixelSizeX;
+                   pixelPos[1] = sLab[1] / _pixelSizeY;
+                   newsth->setPosition(pixelPos);
                    newsth->setEDep(charge); // in unit of electrons
-                   // ALE Store also hit's time.. But can be fixed adding time to fly FIXED if needed
-                   newsth->setTime(simTrkHit->getTime());
+                   newsth->setTime(sth->getTime());
                    newsth->setPathLength(simTrkHit->getPathLength());
                    newsth->setMCParticle(simTrkHit->getMCParticle());
                    newsth->setMomentum(simTrkHit->getMomentum());
@@ -442,7 +518,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             streamlog_out (DEBUG6) << "- List of constituents (pixels/strips):" << std::endl;
             for (size_t iH = 0; iH < recoHit->rawHits().size(); ++iH) {
                 SimTrackerHit *hit = dynamic_cast<SimTrackerHit*>(recoHit->rawHits().at(iH));
-                streamlog_out (DEBUG6) << "  - " << iH << ": Edep (e-) = " << hit->getEDep() << std::endl;
+                streamlog_out (DEBUG6) << "  - " << iH << ": Edep (e-) = " << hit->getEDep() << ", t (ns) =" << hit->getTime() << std::endl;
             }
             streamlog_out (DEBUG7) << "--------------------------------" << std::endl;
 
@@ -526,11 +602,14 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     localPosition[2] = ( dd4hep::mm * oldPos - dd4hep::cm * origin ).dot( surf->normal() ) / dd4hep::mm;
 
     double Momentum[3];
-    for (int j = 0; j < 3; ++j) 
-      if (hit->getMCParticle())
-        Momentum[j] = hit->getMCParticle()->getMomentum()[j] * dd4hep::GeV;
-      else
+    EVENT::MCParticle *mcp = hit->getMCParticle();
+    for (int j = 0; j < 3; ++j) {
+      if (mcp) {
+        Momentum[j] = mcp->getMomentum()[j] * dd4hep::GeV;
+      } else {
         Momentum[j] = hit->getMomentum()[j];
+      }
+    }
 
     // as default put electron's mass
     _currentParticleMass = 0.510e-3 * dd4hep::GeV;
@@ -689,7 +768,7 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
     }
 }
 
-void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
+void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec, SimTrackerHit &simHit)
 {  
     simTrkVec.clear();
     std::map<int, SimTrackerHitImpl*> hit_Dict;
@@ -726,17 +805,17 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
                 TransformCellIDToXY(ix, iy, xCurrent, yCurrent);
                 
                 gsl_sf_result result;
-                int status = gsl_sf_erf_Q_e((xCurrent - 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
+                /*int status = */gsl_sf_erf_Q_e((xCurrent - 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
                 double LowerBound = 1 - result.val;
 
-                status = gsl_sf_erf_Q_e((xCurrent + 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
+                /*status = */gsl_sf_erf_Q_e((xCurrent + 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
                 double UpperBound = 1 - result.val;
                 double integralX = UpperBound - LowerBound;
 
-                status = gsl_sf_erf_Q_e((yCurrent - 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
+                /*status = */gsl_sf_erf_Q_e((yCurrent - 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
                 LowerBound = 1 - result.val;
 
-                status = gsl_sf_erf_Q_e((yCurrent + 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
+                /*status = */gsl_sf_erf_Q_e((yCurrent + 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
                 UpperBound = 1 - result.val;
                 double integralY = UpperBound - LowerBound;
 
@@ -756,6 +835,7 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
                     tmp_hit->setPosition(pos);
                     tmp_hit->setCellID0(pixelID);                   // workaround: cellID used for pixel index
                     tmp_hit->setEDep(totCharge);
+                    tmp_hit->setTime(simHit.getTime()); //usual true timing as starting point
                   
                     hit_Dict.emplace(pixelID, tmp_hit);
                     streamlog_out (DEBUG2) << "Created new pixel hit at idx=" << ix << ", idy=" << iy << ", charge=" << totCharge << std::endl;
@@ -765,16 +845,18 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
                     float edep = item->second->getEDep();
                     edep += totCharge;
                     item->second->setEDep(edep);
+                    //TODO: handle multiple times. For now not needed since all deposits arrive at the same true time.
                     streamlog_out (DEBUG2) << "Updating pixel hit at idx=" << ix << ", idy=" << iy << ", total charge=" << edep << "(delta = " << totCharge << ")" << std::endl;
                 }
             }
         }
     }
     streamlog_out (DEBUG4) << "List of pixel hits created:" << std::endl;
+    int idx=0;
     for(auto item : hit_Dict)
     {
         simTrkVec.push_back(item.second);       
-        streamlog_out (DEBUG4) << "x=" << item.second->getPosition()[0] << ", y=" << item.second->getPosition()[1] << ", z=" << item.second->getPosition()[2] << ", EDep = " << item.second->getEDep() << std::endl;
+        streamlog_out (DEBUG4) << idx++ << ": x=" << item.second->getPosition()[0] << ", y=" << item.second->getPosition()[1] << ", z=" << item.second->getPosition()[2] << ", EDep = " << item.second->getEDep() << std::endl;
     }
 }
 
@@ -822,54 +904,231 @@ void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
 }
 
 /**
+ * Apply threshold.  
+ * Sets the charge to 0 if less than the threshold
+ * Smears the threshold by a Gaussian if sigma > 0
+ */
+void MuonCVXDDigitiser::ApplyThreshold(SimTrackerHitImplVec &simTrkVec)
+{
+   streamlog_out (DEBUG6) << "Applying threshold" << std::endl;
+   float actualThreshold = _threshold;
+   
+   for (int i = 0; i < (int)simTrkVec.size(); ++i)
+   {
+     SimTrackerHitImpl *hit = simTrkVec[i];
+     
+     double smear = 0;
+     float origCharge = hit->getEDep();
+
+     if (_thresholdSmearSigma > 0) smear = RandGauss::shoot(0., _thresholdSmearSigma);
+
+     actualThreshold = actualThreshold + smear;
+     if (hit->getEDep() <= actualThreshold) hit->setEDep(0.0);
+     
+     streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2]
+			   << ", new charge = " << hit->getEDep() << ", previous charge = " << origCharge
+			   << " smeared threshold = " << actualThreshold << "(delta = " << smear << ")" << std::endl;
+   }
+}
+
+/**
+ * Digitizes the charge.
+ * Discretization based on number of bits and bin width scheme.
+ */
+void MuonCVXDDigitiser::ChargeDigitizer(SimTrackerHitImplVec &simTrkVec)
+{
+  streamlog_out (DEBUG6) << "Charge discretization" << std::endl;
+  
+  float minThreshold = _threshold;
+  float maxThreshold = _chargeMax;
+  //int split = 0.3; -- future use
+  int numBins = pow(2, _ChargeDigitizeNumBits)-1;
+
+  double discCharge=-999; 
+
+  for (int i = 0; i < (int)simTrkVec.size(); ++i) {
+    SimTrackerHitImpl *hit = simTrkVec[i];
+
+    float origCharge =	hit->getEDep();
+    discCharge = origCharge;
+     
+    switch(_ChargeDigitizeBinning) {
+        case 0: { // uniform binning
+            if (origCharge < 1.0) break;
+    	    float binWidth = (maxThreshold-minThreshold)/(numBins);
+	        if (origCharge < binWidth) discCharge = (minThreshold+binWidth)/2;
+	        else if (origCharge > maxThreshold) discCharge = (maxThreshold-binWidth/2);
+            else discCharge = ((ceil((origCharge-binWidth)/binWidth)*binWidth)*2+binWidth)/2;
+	        break;
+        }
+        case 1: { // variable binning
+	        if (origCharge < 1.0) break;
+	        int binVal=-1;
+	        for(unsigned int idx = 0; idx < _DigitizedBins.size()-1; idx++) {
+	            if (_DigitizedBins[idx+1] > origCharge) {
+		            binVal = idx;
+		            break;
+	            }
+            }
+	        if (binVal < 0) discCharge = (_DigitizedBins[_DigitizedBins.size()-2] + _DigitizedBins[_DigitizedBins.size()-1]) / 2;
+	        else discCharge = (_DigitizedBins[binVal] + _DigitizedBins[binVal+1]) / 2;
+	        break;
+	    }
+    }
+    hit->setEDep(discCharge);
+
+    streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2]
+                        << ", new charge = " << hit->getEDep() << ", previous charge = " << origCharge
+			            << ", number of bits = " << _ChargeDigitizeNumBits
+			            << ", binning scheme = " << _ChargeDigitizeBinning << std::endl;
+    }
+}
+
+/**
+ * Apply effective measurement resolution.
+ * TODO: Right now assuming completely uncorrelated resolution across pixels, will need to divide into:
+ * - correlated across pixels, uncorrelated across clusters
+ * - correlated within the event, un-correlate 
+*/
+void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
+{
+    streamlog_out (DEBUG6) << "Adding resolution effect to timing measurements" << std::endl;
+    for (int i = 0; i < (int)simTrkVec.size(); ++i)
+    {
+        float delta = RandGauss::shoot(0., _timeSmearingSigma);
+        SimTrackerHitImpl *hit = simTrkVec[i];
+        hit->setTime(hit->getTime() + delta);
+        streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2] 
+            << ", time = " << hit->getTime() << "(delta = " << delta << ")" << std::endl;
+    }
+}
+
+/**
+ * Digitizes the time information.
+ * Discretization based on number of bits and bin width scheme.
+ */
+void MuonCVXDDigitiser::TimeDigitizer(SimTrackerHitImplVec &simTrkVec)
+{
+    streamlog_out (DEBUG6) << "Time discretization" << std::endl;
+  
+    static const int numBins = pow(2, _TimeDigitizeNumBits)-1;
+
+    double discTime;
+
+    for (int i = 0; i < (int)simTrkVec.size(); ++i)
+    {
+        SimTrackerHitImpl *hit = simTrkVec[i];
+
+        float origTime = hit->getTime();
+        discTime = origTime;
+     
+        switch(_TimeDigitizeBinning) {
+        case 0: // uniform binning
+	        static const float binWidth = _timeMax/numBins;
+	        if (origTime < binWidth) discTime = binWidth/2;
+	        else if (origTime > _timeMax) discTime = _timeMax - binWidth/2;
+            else discTime = ((ceil((origTime-binWidth)/binWidth)*binWidth)*2+binWidth)/2;
+	        break;
+        default:
+            streamlog_out(ERROR) << "Invalid setting for pixel time digitization binning. Retaining original time." << std::endl;
+        }
+        hit->setTime(discTime);
+
+        streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2]
+                << ", new time = " << hit->getTime() << ", previous time = " << origTime << std::endl;
+    } //end loop over pixel cells
+}
+
+/**
  * Emulates reconstruction of Tracker Hit 
- * Tracker hit position is reconstructed as center-of-gravity 
- * of cluster of fired cells. Position is corrected for Lorentz shift.
- * TODO check the track reco algorithm (is it the one we need?)
+ * Tracker hit position is reconstructed as weighted average of edge pixels.
+ * The position is corrected for Lorentz shift.
+ * Time is the arithmetic average of constituents.
  */
 TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec)
 {
     double pos[3] = {0, 0, 0};
-    double charge = 0;
-    int size = 0;
-    streamlog_out (DEBUG6) << "Creating reconstructed cluster" << std::endl;
 
-    /* Simple geometric mean */
-    for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
+    double minX = 99999999;
+    double maxX = -99999999;
+    std::vector<int> minIdx;
+    std::vector<int> maxIdx;
+      
+    double charge = 0; // total cluster charge
+    unsigned int size = 0; // number of pixels in the cluster
+    unsigned int edge_size = 0; //number of pixels at the edge of cluster
+    streamlog_out (DEBUG6) << "Creating reconstructed cluster" << std::endl;
+    double time = 0; //average time
+
+    /* Get extreme positions, currently only implemented for barrel */
+    /* Calculate the mean */
+    for (size_t iHit=0; iHit < simTrkVec.size(); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
-        
-        if (hit->getEDep() <= _threshold) continue;
 
+        //check for non-zero value (pixels below threshold have already been set to zero)
+	    if (hit->getEDep() < 1.0) continue;
+	
         size += 1;
+        time += hit->getTime();
         charge += hit->getEDep();
         pos[0] += hit->getPosition()[0];
         pos[1] += hit->getPosition()[1];
         streamlog_out (DEBUG0) << iHit << ": Averaging position, x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", weight(EDep)=" << hit->getEDep() << std::endl;
+
+        if (hit->getPosition()[0] < minX) {
+	        minX = hit->getPosition()[0];
+	        minIdx.push_back(iHit);
+	    }
+	    if (hit->getPosition()[0] > maxX) {
+          maxX = hit->getPosition()[0];
+          maxIdx.push_back(iHit);
+	    }
+    }
+    
+    for (unsigned int i = 0; i < minIdx.size(); i++){
+      SimTrackerHit *hit = simTrkVec[minIdx[i]];
+      
+      if (minX < hit->getPosition()[0]) continue;
+      streamlog_out (DEBUG4) << "min val = " << minX << ", hit position = " <<  hit->getPosition()[0]  << std::endl;
+      edge_size += 1;
+      pos[0] += hit->getPosition()[0];
+      pos[1] += hit->getPosition()[1];
     }
 
-    if (charge > 0.)
-    {
-        TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
-        recoHit->setEDep((charge / _electronsPerKeV) * dd4hep::keV);
+    for (unsigned int i = 0; i < maxIdx.size(); i++){
+      SimTrackerHit *hit = simTrkVec[maxIdx[i]];
 
-        pos[0] /= size;
-        streamlog_out (DEBUG1) << "Position: x = " << pos[0] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleX << "(LA-correction)";
-        pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
-        streamlog_out (DEBUG1) << " = " << pos[0];
-        pos[1] /= size;
-        streamlog_out (DEBUG1) << "; y = " << pos[1] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleY << "(LA-correction)";
-        pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
-        streamlog_out (DEBUG1) << " = " << pos[1] << std::endl;
+      if (maxX > hit->getPosition()[0]) continue;
+      streamlog_out (DEBUG4) << "max val = " << maxX << ", hit position = " <<  hit->getPosition()[0]  << std::endl;
+      edge_size += 1;
+      pos[0] += hit->getPosition()[0];
+      pos[1] += hit->getPosition()[1];
+    }
 
-        recoHit->setPosition(pos);
-        recoHit->setdU( _pixelSizeX / sqrt(12) );
-        recoHit->setdV( _pixelSizeY / sqrt(12) );
+    if ( not (charge > 0.) ) return nullptr;
+
+    TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
+    recoHit->setEDep((charge / _electronsPerKeV) * dd4hep::keV);
+
+    pos[0] /= edge_size;
+    streamlog_out (DEBUG1) << "Position: x = " << pos[0] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleX << "(LA-correction)";
+    pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
+    streamlog_out (DEBUG1) << " = " << pos[0];
+    pos[1] /= edge_size;
+    streamlog_out (DEBUG1) << "; y = " << pos[1] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleY << "(LA-correction)";
+    pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
+    streamlog_out (DEBUG1) << " = " << pos[1];
+
+    recoHit->setPosition(pos);
+    recoHit->setdU( _pixelSizeX / sqrt(12) );
+    recoHit->setdV( _pixelSizeY / sqrt(12) );
+
+    time /= size;
+    recoHit->setTime(time);
+    streamlog_out (DEBUG1) << ", time (ns) = " << time << std::endl;
           
-        return recoHit;
-    }
-   
-    return nullptr;
+    return recoHit;
 }
 
 /** Function transforms local coordinates in the ladder
