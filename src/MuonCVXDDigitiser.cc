@@ -283,7 +283,6 @@ void MuonCVXDDigitiser::LoadGeometry()
           else
             _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
           if ((isInnerTracker==1 || isOuterTracker==1) && z_layout.lengthSensor==0) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
-	  if (!isVertex) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
 	  _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;	  
 	  _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
 	  _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
