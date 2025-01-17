@@ -250,9 +250,8 @@ void MuonCVXDDigitiser::LoadGeometry()
       throw Exception( err.str() ) ;
     }
     _laddersInLayer.resize(_numberOfLayers);
-#ifdef ZSEGMENTED
-    _sensorsPerLadder.resize(_numberOfLayers);
-#endif
+    if(isVertex==1 && isBarrel==1) //Zsegmented for vertex barrel only in MuColl_v1 (3 TeV) and both 10 TeV (MAIA_v0 & MuSIC_v2) geometries
+      _sensorsPerLadder.resize(_numberOfLayers);
     _layerHalfPhi.resize(_numberOfLayers);
     _layerHalfThickness.resize(_numberOfLayers);
     _layerThickness.resize(_numberOfLayers);
@@ -277,13 +276,14 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 	  _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
-#ifdef ZSEGMENTED
-	  _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
-	  _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
-#else
-	  _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
-#endif
-     if (!isVertex) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
+	  if(isVertex==1){ //Zsegmented layers
+	    _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
+	    _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
+          }
+          else
+            _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
+          if ((isInnerTracker==1 || isOuterTracker==1) && z_layout.lengthSensor==0) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
+	  if (!isVertex) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
 	  _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;	  
 	  _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
 	  _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
