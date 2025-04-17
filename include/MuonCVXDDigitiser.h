@@ -168,7 +168,8 @@ protected:
     double _timeSmearingSigma;
     int _electronicEffects;
     int _produceFullPattern;
-
+    std::vector<int> _layerIDs;
+  
     MyG4UniversalFluctuationForSi *_fluctuate;
 
     // charge discretization
@@ -236,6 +237,7 @@ protected:
     void LoadGeometry();
     void PrintGeometryInfo();
     double randomTail( const double qmin, const double qmax );
+    int layerMapping( int id);
 };
 
 #endif

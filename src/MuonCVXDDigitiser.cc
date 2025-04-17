@@ -174,7 +174,12 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     registerProcessorParameter("MaxTrackLength",
                                "Maximum values for track length (in mm)",
                                _maxTrkLen,
-                               10.0); 
+                               10.0);
+    
+    registerProcessorParameter("LayerIDs",
+                               "ID of layers of subdetector",
+                               _layerIDs,
+                               {});
 }
 void MuonCVXDDigitiser::init()
 { 
@@ -400,7 +405,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             SimTrackerHit * simTrkHit = 
                 dynamic_cast<SimTrackerHit*>(STHcol->getElementAt(i));
             // use CellID to set layer and ladder numbers
-            _currentLayer  = cellid_decoder( simTrkHit )["layer"];
+            _currentLayer  = layerMapping(cellid_decoder( simTrkHit )["layer"]);
             _currentLadder = cellid_decoder( simTrkHit )["module"];
             streamlog_out( DEBUG7 ) << "Processing simHit #" << i << ", from layer=" << _currentLayer << ", module=" << _currentLadder << std::endl;
             streamlog_out (DEBUG6) << "- EDep = " << simTrkHit->getEDep() *dd4hep::GeV / dd4hep::keV << " keV, path length = " << simTrkHit->getPathLength() * 1000. << " um" << std::endl;
@@ -1220,4 +1225,18 @@ double MuonCVXDDigitiser::randomTail( const double qmin, const double qmax ) {
   const double range  = ( 1. / qmin ) - offset;
   const double u      = offset + RandFlat::shoot() * range;
   return 1. / u;
+}
+
+int MuonCVXDDigitiser::layerMapping( int id) {
+  int mappedLayerID = -1;
+  
+  auto it = std::find(_layerIDs.begin(), _layerIDs.end(), id);
+  if (it != _layerIDs.end()) {
+    mappedLayerID = std::distance(_layerIDs.begin(), it);
+    streamlog_out(DEBUG) << "Mapped ID of layer " << id << " is: " << mappedLayerID << std::endl;
+  } else {
+    streamlog_out(ERROR) << id << " not found in the _layerIDs vector." << std::endl;
+  }
+  
+  return mappedLayerID;
 }
