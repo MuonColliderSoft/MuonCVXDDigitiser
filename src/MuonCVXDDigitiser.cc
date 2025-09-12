@@ -1,6 +1,9 @@
 #include "MuonCVXDDigitiser.h"
 #include <iostream>
 #include <algorithm>
+#include <cmath>
+#include <random>
+#include <array>
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
 #include <UTIL/CellIDEncoder.h>
@@ -343,7 +346,11 @@ void MuonCVXDDigitiser::LoadGeometry()
     if (_ChargeDigitizeNumBits == 3) _DigitizedBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
     
     //  Here is the updated version of the _DigitizedBins w/ 4 bits
-    if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
+    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
+    if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 659, 870, 1147, 1513, 1995, 2631, 3470, 4576, 6035, 7959, 10497, 13844, 18258, 24079, 31756}; //75 microns
+    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 662, 877, 1161, 1537, 2036, 2696, 3570, 4728, 6260, 8290, 10978, 14537, 19250, 25491, 33756}; //100 microns
+    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 667, 890, 1187, 1584, 2113, 2820, 3762, 5019, 6695, 8933, 11917, 15899, 21212, 28300, 37756}; //200 microns
+    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 686, 942, 1293, 1774, 2435, 3342, 4587, 6296, 8641, 11859, 16277, 22339, 30661, 42081, 57756}; //400 microns
     
     if (_ChargeDigitizeNumBits == 5) _DigitizedBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
     if (_ChargeDigitizeNumBits == 6) _DigitizedBins = {500, 542, 572, 601, 629, 661, 692, 721, 750, 779, 812, 842, 877, 913, 946, 981, 1016, 1051, 1087, 1121, 1161, 1196, 1237, 1275, 1313, 1350, 1391, 1431, 1468, 1514, 1560, 1606, 1646, 1687, 1733, 1777, 1821, 1872, 1920, 1976, 2036, 2091, 2145, 2213, 2272, 2337, 2411, 2488, 2573, 2651, 2739, 2834, 2938, 3053, 3194, 3356, 3532, 3764, 4034, 4379, 4907, 5698, 6957, 9636};
@@ -666,6 +673,54 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
         exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
     }
+
+    //**************************************************************************
+        // MS Update
+    //************************************************************************** 
+    // double p = std::sqrt(pow(hit->getMomentum()[0],2) + pow(hit->getMomentum()[1],2) + pow(hit->getMomentum()[2],2)); //[GeV/c]
+    // double c = 1; 
+    // double beta = 1; 
+    // double x_0 = 93.7; // [mm] -> radiation length in silicon
+    // double sensorT = 0.4; // [mm] -> sensor thickness
+    // double q_charge = 1; 
+    // //effective path length of particle: 
+    // double cos_a = std::abs(dir[2]);
+    // double sin_a = std::abs(dir[1]);
+    // double tan_a = sin_a/cos_a;
+    // double pathL = sensorT/cos_a;
+    // double theta_0 = (0.0136/(beta*c*p))*q_charge*std::sqrt(pathL/x_0)* (1+0.038*std::log(pathL*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+
+    // static thread_local std::mt19937_64 rng{std::random_device{}()};
+    // static thread_local std::normal_distribution<> gauss(0.0, 1.0);
+
+    // double z1 = gauss(rng);
+    // double z2 = gauss(rng);
+    
+    // double exit_noMS[2];
+    // for (int i = 0; i < 2; ++i) {
+    //     entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
+    //     exit_noMS[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
+    // }
+
+    // //displacement in x and y
+    // double x_plane = pathL * theta_0 * (z1/std::sqrt(12) + z2/2);
+    // double y_plane = pathL * theta_0 * (z2/std::sqrt(12) + z1/2);
+    // double xy_displacement = sensorT*tan_a;
+
+    // double theta_plane_x = z1 * theta_0 + std::acos(std::abs(dir[2])); //theta + alpha shift;
+    // double theta_plane_y = z2 * theta_0 + std::acos(std::abs(dir[2])); //theta + alpha shift; 
+    // //MS in x and y
+    // exit[0] = exit_noMS[0] + signbit(x_plane) * (std::abs(x_plane) + xy_displacement);
+    // exit[1] = exit_noMS[1] + signbit(y_plane) * (std::abs(y_plane) + xy_displacement);
+
+    // //correct direction vector to propagate particles correctly
+    // double theta_out_x = dir[0]/dir[2] + theta_plane_x; // x-z slope
+    // double theta_out_y = dir[1]/dir[2] + theta_plane_y; // y-z slope
+    // double norm = std::sqrt(theta_out_x*theta_out_x + theta_out_y*theta_out_y + 1);
+    // dir[0] = theta_out_x/norm;
+    // dir[1] = theta_out_y/norm;
+    // dir[2] = 1/norm;
+
     for (int i = 0; i < 3; ++i) {
         _currentLocalPosition[i] = pos[i];
         _currentEntryPoint[i] = entry[i];
