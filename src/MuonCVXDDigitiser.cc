@@ -347,11 +347,6 @@ void MuonCVXDDigitiser::LoadGeometry()
     
     //  Here is the updated version of the _DigitizedBins w/ 4 bits
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
-    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 659, 870, 1147, 1513, 1995, 2631, 3470, 4576, 6035, 7959, 10497, 13844, 18258, 24079, 31756}; //75 microns
-    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 662, 877, 1161, 1537, 2036, 2696, 3570, 4728, 6260, 8290, 10978, 14537, 19250, 25491, 33756}; //100 microns
-    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 667, 890, 1187, 1584, 2113, 2820, 3762, 5019, 6695, 8933, 11917, 15899, 21212, 28300, 37756}; //200 microns
-    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 686, 942, 1293, 1774, 2435, 3342, 4587, 6296, 8641, 11859, 16277, 22339, 30661, 42081, 57756}; //400 microns
-    
     //product range extended: 
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}; //75 microns
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}; //100 microns    
@@ -414,6 +409,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
         }
         int nSimHits = STHcol->getNumberOfElements();
         streamlog_out( DEBUG9 ) << "Processing collection " << _colName  << " with " <<  nSimHits  << " hits ... " << std::endl ;
+        
         for (int i=0; i < nSimHits; ++i)
         {
             SimTrackerHit * simTrkHit = 
@@ -430,15 +426,53 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             streamlog_out (DEBUG6) << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi << ", " << mcp_theta << std::endl;
             streamlog_out (DEBUG6) << "- MC particle pdg = ";
             EVENT::MCParticle *mcp = simTrkHit->getMCParticle();
+            float mcp_radius, mcp_zed;
             if (mcp) {
                 streamlog_out (DEBUG6) << simTrkHit->getMCParticle()->getPDG();
-            } else {
+                mcp_radius = std::sqrt(mcp->getVertex()[0]*mcp->getVertex()[0]+mcp->getVertex()[1]*mcp->getVertex()[1]);
+                mcp_zed = mcp->getVertex()[2];
+                float deltaZed = abs(simTrkHit->getPosition()[2] -  mcp->getVertex()[2]);
+                //float deltaRad = std::sqrt(simTrkHit->getPosition()[0]*simTrkHit->getPosition()[0] + simTrkHit->getPosition()[1]*simTrkHit->getPosition()[1]) - mcp_radius;
+                float deltaX = simTrkHit->getPosition()[0] - mcp->getVertex()[0];
+                float deltaY = simTrkHit->getPosition()[1] - mcp->getVertex()[1];
+                float deltaRad = std::sqrt(deltaX*deltaX + deltaY*deltaY);
+                float mcp_incidentTheta = std::atan(deltaRad/deltaZed);
+                if(mcp_incidentTheta < 0){
+                    mcp_incidentTheta += M_PI/2;
+                }
+                // std::cout << "delta r: " << deltaRad << std::endl;
+                // std::cout << "delta z: " << deltaZed << std::endl;
+                // std::cout << "incident theta: " << mcp_incidentTheta << " radians : )" << std::endl;
+                
+                // if (std::abs(mcp_incidentTheta) > 20*M_PI/180 && std::abs(mcp_incidentTheta) < 160*M_PI/180){
+                //     continue;
+                // }
+
+                // if (std::abs(mcp_incidentTheta) < 80*M_PI/180 || std::abs(mcp_incidentTheta) > 100*M_PI/180){
+                //     continue;
+                // }
+
+                //std::cout << "incident theta: " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
+                
+                double _p = std::sqrt(std::pow(simTrkHit->getMomentum()[0], 2) + std::pow(simTrkHit->getMomentum()[1], 2) + std::pow(simTrkHit->getMomentum()[2], 2));
+                double _mass = mcp->getMass();
+                double _beta = _p / std::sqrt(_p*_p + _mass*_mass); 
+                // if (_beta > 0.8){
+                //     continue;
+                // }
+            }
+            else{  
+                //continue;  
                 streamlog_out (DEBUG6) << " N.A.";
             }
+
+
             streamlog_out (DEBUG6) << std::endl;
             streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
             streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
             streamlog_out (DEBUG6) << "- Quality = " << simTrkHit->getQuality() << std::endl;
+            
+            //std::cout << "incident theta: " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
             ProduceIonisationPoints( simTrkHit );       
             if (_currentLayer == -1)
               continue;
@@ -682,6 +716,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     entry[2] = -_layerHalfThickness[_currentLayer]; 
     exit[2] = _layerHalfThickness[_currentLayer];
     //entry points: hit position is in middle of layer. ex: entry_x = x - (z distance to bottom of layer) * px/pz
+    // double thetaT_start = std::sqrt(std::pow(std::atan(dir[0]/dir[2]),2) + std::pow(std::atan(dir[1]/dir[2]),2)); //starting angle in radians
+    
     // for (int i = 0; i < 2; ++i) {
     //     entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
     //     exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
@@ -691,122 +727,71 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         // START MS Update
     //************************************************************************** 
     double p = std::sqrt(pow(hit->getMomentum()[0],2) + pow(hit->getMomentum()[1],2) + pow(hit->getMomentum()[2],2)); //[GeV/c]
-    // as default put electron's mass
     double c = 1;
-    //double p_GeV = _currentParticleMomentum * 1e-3; //MeV to GeV
     double beta = p / std::sqrt(p*p + _currentParticleMass*_currentParticleMass); //std::sqrt(PoverM_sqrd*std::pow(1+PoverM_sqrd, -1)); 
-    //std::cout << "beta: " << beta << std::endl;
-    //std::cout << "p: " << p<< " and p current: " << _currentParticleMomentum <<  ", and p_GeV: " << p_GeV << std::endl;
+    
+    // std::cout << "beta: " << beta << std::endl;
+    // std::cout << "p: " << p << " GeV/c"<< std::endl;
+    // std::cout << "mass: " << _currentParticleMass << std::endl;
     double x_0 = 93.7; // [mm] -> radiation length in silicon
     double sensorT = _layerThickness[_currentLayer]; // [mm] -> sensor thickness
     double q_charge = 1; 
-    double theta_0 = (0.0136/(beta*c*p))*q_charge*std::sqrt(sensorT/x_0)* (1+0.038*std::log(sensorT*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
 
     static thread_local std::mt19937_64 rng{std::random_device{}()};
     static thread_local std::normal_distribution<> gauss(0.0, 1.0);
 
-    //theta start position of particle track: 
-    double thetaT_start = std::sqrt(std::pow(std::atan(dir[0]/dir[2]),2) + std::pow(std::atan(dir[1]/dir[2]),2)); //starting angle in radians
-    //std::cout << "thetaT start: " << thetaT_start << std::endl;
+    // normalize direction
+    double mag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+    dir[0] /= mag;
+    dir[1] /= mag;
+    dir[2] /= mag;
     for (int i = 0; i < 2; ++i) {
         entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
-    }
+    } 
 
-    double theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
-    double r_plane[2], theta_plane[2], z1[2], z2[2];
+    double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
     int counter = 0;
-    bool smallAngle = false;
-    exit[2] = 0;
     double previous_exit[3] = {0,0,0};
-    while (exit[2] < _layerThickness[_currentLayer]){
+    double z_segment = sensorT / 1000;
+    double z_traveled = 0;
+    while (z_traveled < sensorT){
+
+        pathL_segment = z_segment / fabs(dir[2]); // path length for segment
+
+        // --- Multiple scattering step ---
+        theta_0 = (0.0136/(beta*c*p))*q_charge*std::sqrt(pathL_segment/x_0)* (1+0.038*std::log(pathL_segment*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+
         theta_plane_x = gauss(rng)*theta_0;
         theta_plane_y = gauss(rng)*theta_0;
-        //theta_tangent = std::sqrt(std::pow(theta_plane_x,2) + std::pow(theta_plane_y,2));
-        //do small angle approximation:
-        if(std::abs(thetaT_start) <= 10*M_PI/180 || std::abs(thetaT_start) >= 170*M_PI/180) {
-            for (int i = 0; i < 2; ++i) {
-                z1[i] = gauss(rng);
-                z2[i] = gauss(rng);
-                theta_plane[i] = z1[i] * theta_0;
-                r_plane[i] = sensorT * theta_0 * (z1[i]/std::sqrt(12) + z2[i]/2);
-            }
-            smallAngle = true;
-            break; //to escape the while loop
-        }
-        else{
-            theta_out_x = theta_plane_x + std::atan2(dir[0],dir[2]);
-            theta_out_y = theta_plane_y + std::atan2(dir[1],dir[2]);
+        theta_out_x = theta_plane_x + std::atan2(dir[0],dir[2]);
+        theta_out_y = theta_plane_y + std::atan2(dir[1],dir[2]);
 
-            //update dir vector:
-            dir[0] = std::tan(theta_out_x)*dir[2];
-            dir[1] = std::tan(theta_out_y)*dir[2];
+        //update dir vector:
+        dir[0] = std::tan(theta_out_x);
+        dir[1] = std::tan(theta_out_y);
+        dir[2] = 1.0;
 
-            //prop pttle some fraction of a distance of the exit point:
-            static thread_local std::normal_distribution<> gauss2(_layerThickness[_currentLayer] - exit[2], _layerThickness[_currentLayer]);
-            for (int i = 0; i < 3; i++) previous_exit[i] = exit[i];
-            exit[2] = std::abs(gauss2(rng));
-            exit[0] = pos[0] + dir[0] * (exit[2] - pos[2]) / dir[2];
-            exit[1] = pos[1] + dir[1] * (exit[2] - pos[2]) / dir[2];
+        // renormalize again
+        double mag2 = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + 1.0);
+        dir[0] /= mag2;
+        dir[1] /= mag2;
+        dir[2] /= mag2;
 
-            //update position if we are still inside the sensor:
-            if(exit[2] < _layerThickness[_currentLayer]){
-                pos[0] += (exit[0] - previous_exit[0]);
-                pos[1] += (exit[1] - previous_exit[1]);
-                pos[2] += (exit[2] - previous_exit[2]);
-            }
-            //update thetaT_start: 
-            thetaT_start = std::sqrt(std::pow(std::atan(dir[0]/dir[2]),2) + std::pow(std::atan(dir[1]/dir[2]),2)); //updated starting angle in radians
-        } 
+        //update postion:
+        pos[0] += dir[0] * pathL_segment;
+        pos[1] += dir[1] * pathL_segment;
+        pos[2] += dir[2] * pathL_segment;
+
+        z_traveled += z_segment;
  
         counter++;
-
-        // --- Use these cout statements if interested in DEBUGGING --- //
-
-        //std::cout << "Loop " << counter << " Results--------> " << std::endl;
-        // std::cout << "theta_plane_x: " << theta_plane_x << std::endl;
-        // std::cout << "theta_plane_y: " << theta_plane_y << std::endl;
-        // std::cout << "theta_tangent: " << theta_tangent << std::endl; 
-        //std::cout << "thetaT_start + theta_tangent: " << thetaT_start + theta_tangent << std::endl; 
-        // std::cout << "theta_out_x: " << theta_out_x << std::endl;
-        // std::cout << "theta_out_y: " << theta_out_y << std::endl;
-        // for (int i = 0; i < 3; i++){std::cout << "dir[" << i << "]: " << dir[i] << std::endl;}
-        // for (int i = 0; i < 3; i++){std::cout << "exit[" << i << "]: " << exit[i] << std::endl;}
-        // for (int i = 0; i < 3; i++){std::cout << "pos[" << i << "]: " << pos[i] << std::endl;}
     }
-
-    exit[2] = _layerHalfThickness[_currentLayer]; //redefine the exit point as the end of the sensor per usual
-
-    /*
-    if the particle track is still occupied at a large angle, compute the final exit point (the x, y, z postion at the planar z exit point of the sensor)
-    this is the original idea behind the straight-line approximation except that the direction and postion vectors have been updated from MS
-    The final exit point uses these updated vectors for a more accurate representation for BIB in silicon sensors 
-    */
-    if(smallAngle == false){
-        for (int i = 0; i < 2; ++i) {exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];} //restore exit position using original position.
-    }
-
-    //MS in x and y
-    /*
-    If, instead, the particle is at a near-perpendicular angle wrt the z-plane proceed to find the updated exit point using the PDG MS technique
-    */
-    if (smallAngle == true){
-        double exit_noMS[2];
-        for (int i = 0; i < 2; ++i) {
-            exit_noMS[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
-        }
-        exit[0] = exit_noMS[0] + r_plane[0];
-        exit[1] = exit_noMS[1] + r_plane[1];
-        theta_out_x = std::atan2(dir[0],dir[2]) + theta_plane[0]; // x-z slope prop to angle
-        theta_out_y = std::atan2(dir[1],dir[2]) + theta_plane[1]; // y-z slope prop to angle
-        dir[0] = std::tan(theta_out_x)*dir[2];
-        dir[1] = std::tan(theta_out_y)*dir[2];
-    }
-
-    // -- cout statements for debugging: -- //
-
+    //find final exit point
+    for (int i = 0; i < 2; ++i) {exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];} 
+    
+    // // //-- cout statements for debugging: -- //
     // std::cout << "Final Results--------> " << std::endl;
     // std::cout << "theta_0: " << theta_0 << std::endl;
-    // std::cout << "theta_tangent: " << theta_tangent << std::endl;
     // std::cout << "theta_plane_x: " << theta_plane_x << std::endl;
     // std::cout << "theta_plane_y: " << theta_plane_y << std::endl; 
     // std::cout << "theta_out_x: " << theta_out_x << std::endl;
@@ -1154,6 +1139,8 @@ void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
         float sigma_clock    = 0.005;  // fixed by clock quality 5ps
         float sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
         float delta = RandGauss::shoot(0., sigma_total);//(0., _timeSmearingSigma);
+        //float delta = RandGauss::shoot(0., _timeSmearingSigma);
+
         //std::cout << "sigma_total: " << sigma_total << std::endl; 
         hit->setTime(hit->getTime() + delta);
         streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2] 
