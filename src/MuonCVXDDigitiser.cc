@@ -346,12 +346,12 @@ void MuonCVXDDigitiser::LoadGeometry()
     if (_ChargeDigitizeNumBits == 3) _DigitizedBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
     
     //  Here is the updated version of the _DigitizedBins w/ 4 bits
-    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
+    if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
     //product range extended: 
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}; //75 microns
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}; //100 microns    
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 720, 1037, 1494, 2152, 3099, 4463, 6428, 9258, 13334, 19205, 27660, 39838, 57378, 82640, 119024}; //200 microns
-    if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 754, 1138, 1716, 2588, 3904, 5889, 8883, 13399, 20211, 30486, 45985, 69363, 104626, 157816, 238048}; //400 microns
+    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 754, 1138, 1716, 2588, 3904, 5889, 8883, 13399, 20211, 30486, 45985, 69363, 104626, 157816, 238048}; //400 microns
 
 
     if (_ChargeDigitizeNumBits == 5) _DigitizedBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
@@ -443,6 +443,13 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 // std::cout << "delta r: " << deltaRad << std::endl;
                 // std::cout << "delta z: " << deltaZed << std::endl;
                 // std::cout << "incident theta: " << mcp_incidentTheta << " radians : )" << std::endl;
+
+                // int stepTheta = 90;
+
+                // if (std::abs(mcp_incidentTheta) < (stepTheta-1)*M_PI/180 || std::abs(mcp_incidentTheta) > stepTheta*M_PI/180){
+                //     continue;
+                // }
+                //std::cout << "incident theta: " << mcp_incidentTheta*M_PI/180 << " degrees : )" << std::endl;
                 
                 // if (std::abs(mcp_incidentTheta) > 20*M_PI/180 && std::abs(mcp_incidentTheta) < 160*M_PI/180){
                 //     continue;
@@ -452,7 +459,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 //     continue;
                 // }
 
-                //std::cout << "incident theta: " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
+                std::cout << "incident theta: " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
                 
                 double _p = std::sqrt(std::pow(simTrkHit->getMomentum()[0], 2) + std::pow(simTrkHit->getMomentum()[1], 2) + std::pow(simTrkHit->getMomentum()[2], 2));
                 double _mass = mcp->getMass();
@@ -789,7 +796,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     //find final exit point
     for (int i = 0; i < 2; ++i) {exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];} 
     
-    // // //-- cout statements for debugging: -- //
+    // //-- cout statements for debugging: -- //
     // std::cout << "Final Results--------> " << std::endl;
     // std::cout << "theta_0: " << theta_0 << std::endl;
     // std::cout << "theta_plane_x: " << theta_plane_x << std::endl;
