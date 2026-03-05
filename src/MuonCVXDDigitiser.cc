@@ -444,7 +444,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 // std::cout << "delta z: " << deltaZed << std::endl;
                 // std::cout << "incident theta: " << mcp_incidentTheta << " radians : )" << std::endl;
 
-                // int stepTheta = 90;
+                // int stepTheta = 73;
 
                 // if (std::abs(mcp_incidentTheta) < (stepTheta-1)*M_PI/180 || std::abs(mcp_incidentTheta) > stepTheta*M_PI/180){
                 //     continue;
@@ -459,7 +459,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 //     continue;
                 // }
 
-                std::cout << "incident theta: " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
+                //std::cout << "incident theta: " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
                 
                 double _p = std::sqrt(std::pow(simTrkHit->getMomentum()[0], 2) + std::pow(simTrkHit->getMomentum()[1], 2) + std::pow(simTrkHit->getMomentum()[2], 2));
                 double _mass = mcp->getMass();
@@ -737,9 +737,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double c = 1;
     double beta = p / std::sqrt(p*p + _currentParticleMass*_currentParticleMass); //std::sqrt(PoverM_sqrd*std::pow(1+PoverM_sqrd, -1)); 
     
-    // std::cout << "beta: " << beta << std::endl;
-    // std::cout << "p: " << p << " GeV/c"<< std::endl;
-    // std::cout << "mass: " << _currentParticleMass << std::endl;
     double x_0 = 93.7; // [mm] -> radiation length in silicon
     double sensorT = _layerThickness[_currentLayer]; // [mm] -> sensor thickness
     double q_charge = 1; 
@@ -757,9 +754,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     } 
 
     double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
-    int counter = 0;
-    double previous_exit[3] = {0,0,0};
-    double z_segment = sensorT / 1000;
+    double num_slices = sensorT / 0.005; //for 5 micron slices in pixel sensor
+    double z_segment = sensorT / num_slices;
     double z_traveled = 0;
     while (z_traveled < sensorT){
 
@@ -790,8 +786,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         pos[2] += dir[2] * pathL_segment;
 
         z_traveled += z_segment;
- 
-        counter++;
     }
     //find final exit point
     for (int i = 0; i < 2; ++i) {exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];} 
