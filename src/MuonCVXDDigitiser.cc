@@ -345,12 +345,16 @@ void MuonCVXDDigitiser::LoadGeometry()
     // FIXME: Will move to assign more dynamically 
     if (_ChargeDigitizeNumBits == 3) _DigitizedBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
     
-    //  Here is the updated version of the _DigitizedBins w/ 4 bits
+    //  Here is the updated version of the _DigitizedBins w/ 4 bits for VXB 50 micron sensors
     if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
-    //product range extended: 
+    //product range extended for increased sensor thickness in VXB:
+    // -- 75 micron sensors: --//
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}; //75 microns
+    // -- 100 micron sensors: --//
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}; //100 microns    
+    // -- 200 micron sensors: --//
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 720, 1037, 1494, 2152, 3099, 4463, 6428, 9258, 13334, 19205, 27660, 39838, 57378, 82640, 119024}; //200 microns
+    // -- 400 micron sensors: --//
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 754, 1138, 1716, 2588, 3904, 5889, 8883, 13399, 20211, 30486, 45985, 69363, 104626, 157816, 238048}; //400 microns
 
 
@@ -762,7 +766,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         pathL_segment = z_segment / fabs(dir[2]); // path length for segment
 
         // --- Multiple scattering step ---
-        theta_0 = (0.0136/(beta*c*p))*q_charge*std::sqrt(pathL_segment/x_0)* (1+0.038*std::log(pathL_segment*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+        theta_0 = (0.0136/(beta*c*p))*q_charge*std::sqrt(pathL_segment/x_0)
+        *(1+0.038*std::log(pathL_segment*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
 
         theta_plane_x = gauss(rng)*theta_0;
         theta_plane_y = gauss(rng)*theta_0;
@@ -789,17 +794,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     }
     //find final exit point
     for (int i = 0; i < 2; ++i) {exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];} 
-    
-    // //-- cout statements for debugging: -- //
-    // std::cout << "Final Results--------> " << std::endl;
-    // std::cout << "theta_0: " << theta_0 << std::endl;
-    // std::cout << "theta_plane_x: " << theta_plane_x << std::endl;
-    // std::cout << "theta_plane_y: " << theta_plane_y << std::endl; 
-    // std::cout << "theta_out_x: " << theta_out_x << std::endl;
-    // std::cout << "theta_out_y: " << theta_out_y << std::endl;
-    // for (int i = 0; i < 3; i++){std::cout << "dir[" << i << "]: " << dir[i] << std::endl;}
-    // for (int i = 0; i < 3; i++){std::cout << "exit[" << i << "]: " << exit[i] << std::endl;}
-    // for (int i = 0; i < 3; i++){std::cout << "pos[" << i << "]: " << pos[i] << std::endl;}
 
     //**************************************************************************
         // END MS Update
@@ -1130,7 +1124,7 @@ void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
     streamlog_out (DEBUG6) << "Adding resolution effect to timing measurements" << std::endl;
     for (int i = 0; i < (int)simTrkVec.size(); ++i)
     {
-        //make timing more realistic: 
+        // -- Realistic timing in planar sensors application: -- //
         SimTrackerHitImpl *hit = simTrkVec[i];
         float t_rise = (8.8*_layerThickness[_currentLayer]*1e3 + 152.1)*1e-3; //[ns]
         float sigma_landau   = 0.03 * _layerThickness[_currentLayer]/0.05;  // [ns]from sensor thickness & charge deposition fluctuations - 30ps/50microns
@@ -1139,8 +1133,8 @@ void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
         float sigma_TDC      = 0.025/std::sqrt(12);  // time to digital converter using 25 ns for deltaT 
         float sigma_clock    = 0.005;  // fixed by clock quality 5ps
         float sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
-        float delta = RandGauss::shoot(0., sigma_total);//(0., _timeSmearingSigma);
-        //float delta = RandGauss::shoot(0., _timeSmearingSigma);
+        float delta = RandGauss::shoot(0., sigma_total);//(0., _timeSmearingSigma); <-- Old timing application
+        //float delta = RandGauss::shoot(0., _timeSmearingSigma); <-- Old timeing application using guassian smearing
 
         //std::cout << "sigma_total: " << sigma_total << std::endl; 
         hit->setTime(hit->getTime() + delta);
