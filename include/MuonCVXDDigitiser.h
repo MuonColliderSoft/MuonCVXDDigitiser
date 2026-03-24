@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "marlin/Processor.h"
 #include "lcio.h"
@@ -222,7 +223,13 @@ protected:
     void ChargeDigitizer(SimTrackerHitImplVec &simTrkVec);
 
     /* Time digitization helpers */
-    void TimeSmearer(SimTrackerHitImplVec &simTrkVec);
+    void TimeSmearer(SimTrackerHitImplVec &simTrkVec,
+                                    std::optional<float> t_riseOverride = std::nullopt, 
+                                    std::optional<float> sigma_landauOverride = std::nullopt,
+                                    std::optional<float> sigma_timewalkOverride = std::nullopt,
+                                    std::optional<float> sigma_jitterOverride = std::nullopt,
+                                    std::optional<float> sigma_TDCOverride = std::nullopt,
+                                    std::optional<float> sigma_clockOverride = std::nullopt);
     void TimeDigitizer(SimTrackerHitImplVec &simTrkVec);
 
     /* Reconstruction of measurement and helpers */

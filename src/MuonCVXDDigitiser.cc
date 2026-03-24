@@ -1,4 +1,5 @@
 #include "MuonCVXDDigitiser.h"
+#include <optional>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -348,13 +349,13 @@ void MuonCVXDDigitiser::LoadGeometry()
     //  Here is the updated version of the _DigitizedBins w/ 4 bits for VXB 50 micron sensors
     if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
     //product range extended for increased sensor thickness in VXB:
-    // -- 75 micron sensors: --//
+    // -- 75 micron sensors in VXB: --//
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}; //75 microns
-    // -- 100 micron sensors: --//
+    // -- 100 micron sensors in VXB: --//
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}; //100 microns    
-    // -- 200 micron sensors: --//
+    // -- 200 micron sensors in VXB: --//
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 720, 1037, 1494, 2152, 3099, 4463, 6428, 9258, 13334, 19205, 27660, 39838, 57378, 82640, 119024}; //200 microns
-    // -- 400 micron sensors: --//
+    // -- 400 micron sensors in VXB: --//
     //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 754, 1138, 1716, 2588, 3904, 5889, 8883, 13399, 20211, 30486, 45985, 69363, 104626, 157816, 238048}; //400 microns
 
 
@@ -718,24 +719,18 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     if ( _currentLayer == -1)
       return;
 
-    // std::cout << "START" << std::endl;
-    // std::cout << "--------------------------------------------" << std::endl;
-    // std::cout << "Subdetector is: " << _subDetName << std::endl;
-    // std::cout << "Current Layer Thickness: " << _layerThickness[_currentLayer] << "[mm]" << std::endl;
-
     double origPos[3] = {pos[0], pos[1], pos[2]};
     entry[2] = -_layerHalfThickness[_currentLayer]; 
     exit[2] = _layerHalfThickness[_currentLayer];
     //entry points: hit position is in middle of layer. ex: entry_x = x - (z distance to bottom of layer) * px/pz
-    // double thetaT_start = std::sqrt(std::pow(std::atan(dir[0]/dir[2]),2) + std::pow(std::atan(dir[1]/dir[2]),2)); //starting angle in radians
-    
+
     // for (int i = 0; i < 2; ++i) {
     //     entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
     //     exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
     // }
 
     //**************************************************************************
-        // START MS Update
+        //Multiple scattering application
     //************************************************************************** 
     double p = std::sqrt(pow(hit->getMomentum()[0],2) + pow(hit->getMomentum()[1],2) + pow(hit->getMomentum()[2],2)); //[GeV/c]
     double c = 1;
@@ -795,9 +790,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     //find final exit point
     for (int i = 0; i < 2; ++i) {exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];} 
 
-    //**************************************************************************
-        // END MS Update
-    //************************************************************************** 
     
     for (int i = 0; i < 3; ++i) {
         _currentLocalPosition[i] = origPos[i];
@@ -862,8 +854,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             << ", x=" << _ionisationPoints[i].x << ", y=" << _ionisationPoints[i].y << ", z=" << _ionisationPoints[i].z << std::endl;
     }
 
-    // std::cout << "--------------------------------------------" << std::endl;
-    // std::cout << "STOP" << std::endl;
 }
 void MuonCVXDDigitiser::ProduceSignalPoints()
 {
@@ -1119,19 +1109,35 @@ void MuonCVXDDigitiser::ChargeDigitizer(SimTrackerHitImplVec &simTrkVec)
  * - correlated across pixels, uncorrelated across clusters
  * - correlated within the event, un-correlate 
 */
-void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
+void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec,
+                                    std::optional<float> t_riseOverride, 
+                                    std::optional<float> sigma_landauOverride,
+                                    std::optional<float> sigma_timewalkOverride,
+                                    std::optional<float> sigma_jitterOverride,
+                                    std::optional<float> sigma_TDCOverride,
+                                    std::optional<float> sigma_clockOverride)
 {
     streamlog_out (DEBUG6) << "Adding resolution effect to timing measurements" << std::endl;
     for (int i = 0; i < (int)simTrkVec.size(); ++i)
     {
-        // -- Realistic timing in planar sensors application: -- //
+        // -- Realistic timing in planar sensors application default values: -- //
         SimTrackerHitImpl *hit = simTrkVec[i];
-        float t_rise = (8.8*_layerThickness[_currentLayer]*1e3 + 152.1)*1e-3; //[ns]
-        float sigma_landau   = 0.03 * _layerThickness[_currentLayer]/0.05;  // [ns]from sensor thickness & charge deposition fluctuations - 30ps/50microns
-        float sigma_timewalk = 0.1 * t_rise; //[ns] t_rise * 0.1
-        float sigma_jitter   = (_electronicNoise*t_rise)/(80000 * _layerThickness[_currentLayer]);  // [ns] Q_noise/slope in charge over time 80e/micron = 80000e/mm
-        float sigma_TDC      = 0.025/std::sqrt(12);  // time to digital converter using 25 ns for deltaT 
-        float sigma_clock    = 0.005;  // fixed by clock quality 5ps
+        float t_riseDefault = (8.8*_layerThickness[_currentLayer]*1e3 + 152.1)*1e-3; //[ns]
+        //Check if default values are override: 
+        float t_rise = t_riseOverride.value_or(t_riseDefault);
+        float sigma_landauDefault   = 0.03 * _layerThickness[_currentLayer]/0.05;  // [ns]from sensor thickness & charge deposition fluctuations - 30ps/50microns
+        float sigma_timewalkDefault = 0.1 * t_rise; //[ns] t_rise * 0.1
+        float sigma_jitterDefault   = (_electronicNoise*t_rise)/(80000 * _layerThickness[_currentLayer]);  // [ns] Q_noise/slope in charge over time 80e/micron = 80000e/mm
+        float sigma_TDCDefault      = 0.025/std::sqrt(12);  // time to digital converter using 25 ns for deltaT 
+        float sigma_clockDefault    = 0.005;  // fixed by clock quality 5ps
+        
+        //Check if default values are override: 
+        float sigma_landau = sigma_landauOverride.value_or(sigma_landauDefault);
+        float sigma_timewalk = sigma_timewalkOverride.value_or(sigma_timewalkDefault);
+        float sigma_jitter = sigma_jitterOverride.value_or(sigma_jitterDefault);
+        float sigma_TDC = sigma_TDCOverride.value_or(sigma_TDCDefault);
+        float sigma_clock = sigma_clockOverride.value_or(sigma_clockDefault);
+        
         float sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
         float delta = RandGauss::shoot(0., sigma_total);//(0., _timeSmearingSigma); <-- Old timing application
         //float delta = RandGauss::shoot(0., _timeSmearingSigma); <-- Old timeing application using guassian smearing
