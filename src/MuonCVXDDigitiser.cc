@@ -35,14 +35,13 @@ using dd4hep::rec::SurfaceMap;
 using dd4hep::rec::ISurface;
 using dd4hep::rec::Vector2D;
 using dd4hep::rec::Vector3D;
-MuonCVXDDigitiser aMuonCVXDDigitiser ;
 MuonCVXDDigitiser::MuonCVXDDigitiser() :
     Processor("MuonCVXDDigitiser"),
     _nRun(0),
     _nEvt(0),
     _totEntries(0),
-    _currentLayer(0),
-    _map(nullptr)
+    _map(nullptr),
+    _currentLayer(0)
 {
     _description = "MuonCVXDDigitiser should create VTX TrackerHits from SimTrackerHits";
     registerInputCollection(LCIO::SIMTRACKERHIT,
@@ -218,7 +217,7 @@ void MuonCVXDDigitiser::init()
     _nRun = 0 ;
     _nEvt = 0 ;
     _totEntries = 0;
-    _fluctuate = new MyG4UniversalFluctuationForSi();
+    _fluctuate = std::make_unique<MyG4UniversalFluctuationForSi>();
 }
 void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 { 
@@ -370,7 +369,7 @@ void MuonCVXDDigitiser::LoadGeometry()
         streamlog_out(DEBUG5) << "Subdetector is: " << _subDetName << std::endl;
         float shift = 500.; // first bin
         float scalefactor = 2.; 
-        for (int i = 0; i < _DigitizedBins.size(); i++){
+        for (int i = 0; i < (int)_DigitizedBins.size(); i++){
             _DigitizedBins[i] = (_DigitizedBins[i] - _DigitizedBins[0]) * scalefactor + shift;
         }
     }
@@ -432,11 +431,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             streamlog_out (DEBUG6) << "- Position r(mm),phi,theta = " << sim_r << ", " << sim_phi << ", " << sim_theta << std::endl;
             streamlog_out (DEBUG6) << "- MC particle pdg = ";
             EVENT::MCParticle *mcp = simTrkHit->getMCParticle();
-            float mcp_radius, mcp_z;
             if (mcp) {
                 streamlog_out (DEBUG6) << simTrkHit->getMCParticle()->getPDG();
-                mcp_radius = std::sqrt(mcp->getVertex()[0]*mcp->getVertex()[0]+mcp->getVertex()[1]*mcp->getVertex()[1]);
-                mcp_z = mcp->getVertex()[2];
                 float deltaZ = abs(simTrkHit->getPosition()[2] -  mcp->getVertex()[2]);
                 float deltaX = simTrkHit->getPosition()[0] - mcp->getVertex()[0];
                 float deltaY = simTrkHit->getPosition()[1] - mcp->getVertex()[1];
@@ -451,7 +447,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 
                 double _p = std::sqrt(std::pow(simTrkHit->getMomentum()[0], 2) + std::pow(simTrkHit->getMomentum()[1], 2) + std::pow(simTrkHit->getMomentum()[2], 2));
                 double _mass = mcp->getMass();
-                double _beta = _p / std::sqrt(_p*_p + _mass*_mass); 
+                streamlog_out (DEBUG6) << "beta: " << _p / std::sqrt(_p*_p + _mass*_mass) << std::endl;
             }
             else{
                 streamlog_out (DEBUG6) << " N.A.";
@@ -619,7 +615,7 @@ void MuonCVXDDigitiser::check(LCEvent *evt)
 void MuonCVXDDigitiser::end()
 {
     streamlog_out(DEBUG) << "   end called  " << std::endl;
-    delete _fluctuate;
+    _fluctuate.reset();
 }
 /** Function calculates local coordinates of the sim hit 
  * in the given ladder and local momentum of particle. 

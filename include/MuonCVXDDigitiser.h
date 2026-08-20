@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <memory>
 
 #include "marlin/Processor.h"
 #include "lcio.h"
@@ -174,7 +175,7 @@ protected:
     int _doMultipleScattering;
     std::vector<int> _layerIDs;
   
-    MyG4UniversalFluctuationForSi *_fluctuate;
+    std::unique_ptr<MyG4UniversalFluctuationForSi> _fluctuate;
 
     // charge discretization
     std::vector<double> _DigitizedBins{};
