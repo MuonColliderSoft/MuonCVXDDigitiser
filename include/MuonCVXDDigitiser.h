@@ -96,6 +96,8 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 100) <br>
   * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
  * (default parameter value : 10) <br> 
+ * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
+ * (default parameter value : 0) <br>
  * <br>
  */
 class MuonCVXDDigitiser : public Processor
@@ -169,6 +171,7 @@ protected:
     double _timeSmearingSigma;
     int _electronicEffects;
     int _produceFullPattern;
+    int _doMultipleScattering;
     std::vector<int> _layerIDs;
   
     MyG4UniversalFluctuationForSi *_fluctuate;

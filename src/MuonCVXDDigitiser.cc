@@ -184,6 +184,10 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "ID of layers of subdetector",
                                _layerIDs,
                                {});
+    registerProcessorParameter("DoMultipleScattering",
+                               "Flag to enable multiple scattering of the track inside the sensor.",
+                               _doMultipleScattering,
+                               0);
 }
 void MuonCVXDDigitiser::init()
 { 
@@ -345,18 +349,15 @@ void MuonCVXDDigitiser::LoadGeometry()
     // Bins for charge discretization
     // FIXME: Will move to assign more dynamically 
     if (_ChargeDigitizeNumBits == 3) _DigitizedBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
-    
-    //  Here is the updated version of the _DigitizedBins w/ 4 bits for VXB 50 micron sensors
     if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
-    //product range extended for increased sensor thickness in VXB:
-    // -- 75 micron sensors in VXB: --//
-    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}; //75 microns
     // -- 100 micron sensors in VXB: --//
-    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}; //100 microns    
+    if (_ChargeDigitizeNumBits == 4 && isVertex && _layerThickness[_currentLayer]==0.075) _DigitizedBins = {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}; //75 microns
+    // -- 100 micron sensors in VXB: --//
+    if (_ChargeDigitizeNumBits == 4 && isVertex && _layerThickness[_currentLayer]==0.1) _DigitizedBins = {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}; //100 microns    
     // -- 200 micron sensors in VXB: --//
-    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 720, 1037, 1494, 2152, 3099, 4463, 6428, 9258, 13334, 19205, 27660, 39838, 57378, 82640, 119024}; //200 microns
+    if (_ChargeDigitizeNumBits == 4 && isVertex && _layerThickness[_currentLayer]==0.2) _DigitizedBins = {500, 720, 1037, 1494, 2152, 3099, 4463, 6428, 9258, 13334, 19205, 27660, 39838, 57378, 82640, 119024}; //200 microns
     // -- 400 micron sensors in VXB: --//
-    //if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 754, 1138, 1716, 2588, 3904, 5889, 8883, 13399, 20211, 30486, 45985, 69363, 104626, 157816, 238048}; //400 microns
+    if (_ChargeDigitizeNumBits == 4 && isVertex && _layerThickness[_currentLayer]==0.4) _DigitizedBins = {500, 754, 1138, 1716, 2588, 3904, 5889, 8883, 13399, 20211, 30486, 45985, 69363, 104626, 157816, 238048}; //400 microns
 
 
     if (_ChargeDigitizeNumBits == 5) _DigitizedBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
@@ -424,67 +425,42 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             _currentLadder = cellid_decoder( simTrkHit )["module"];
             streamlog_out( DEBUG7 ) << "Processing simHit #" << i << ", from layer=" << _currentLayer << ", module=" << _currentLadder << std::endl;
             streamlog_out (DEBUG6) << "- EDep = " << simTrkHit->getEDep() *dd4hep::GeV / dd4hep::keV << " keV, path length = " << simTrkHit->getPathLength() * 1000. << " um" << std::endl;
-            float mcp_r = std::sqrt(simTrkHit->getPosition()[0]*simTrkHit->getPosition()[0]+simTrkHit->getPosition()[1]*simTrkHit->getPosition()[1]);
-            float mcp_phi = std::atan(simTrkHit->getPosition()[1]/simTrkHit->getPosition()[0]);
-            float mcp_theta = simTrkHit->getPosition()[2] == 0 ? 3.1416/2 : std::atan(mcp_r/simTrkHit->getPosition()[2]);
+            float sim_r = std::sqrt(simTrkHit->getPosition()[0]*simTrkHit->getPosition()[0]+simTrkHit->getPosition()[1]*simTrkHit->getPosition()[1]);
+            float sim_phi = std::atan(simTrkHit->getPosition()[1]/simTrkHit->getPosition()[0]);
+            float sim_theta = simTrkHit->getPosition()[2] == 0 ? 3.1416/2 : std::atan(sim_r/simTrkHit->getPosition()[2]);
             streamlog_out (DEBUG6) << "- Position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
-            streamlog_out (DEBUG6) << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi << ", " << mcp_theta << std::endl;
+            streamlog_out (DEBUG6) << "- Position r(mm),phi,theta = " << sim_r << ", " << sim_phi << ", " << sim_theta << std::endl;
             streamlog_out (DEBUG6) << "- MC particle pdg = ";
             EVENT::MCParticle *mcp = simTrkHit->getMCParticle();
-            float mcp_radius, mcp_zed;
+            float mcp_radius, mcp_z;
             if (mcp) {
                 streamlog_out (DEBUG6) << simTrkHit->getMCParticle()->getPDG();
                 mcp_radius = std::sqrt(mcp->getVertex()[0]*mcp->getVertex()[0]+mcp->getVertex()[1]*mcp->getVertex()[1]);
-                mcp_zed = mcp->getVertex()[2];
-                float deltaZed = abs(simTrkHit->getPosition()[2] -  mcp->getVertex()[2]);
-                //float deltaRad = std::sqrt(simTrkHit->getPosition()[0]*simTrkHit->getPosition()[0] + simTrkHit->getPosition()[1]*simTrkHit->getPosition()[1]) - mcp_radius;
+                mcp_z = mcp->getVertex()[2];
+                float deltaZ = abs(simTrkHit->getPosition()[2] -  mcp->getVertex()[2]);
                 float deltaX = simTrkHit->getPosition()[0] - mcp->getVertex()[0];
                 float deltaY = simTrkHit->getPosition()[1] - mcp->getVertex()[1];
-                float deltaRad = std::sqrt(deltaX*deltaX + deltaY*deltaY);
-                float mcp_incidentTheta = std::atan(deltaRad/deltaZed);
+                float deltaR = std::sqrt(deltaX*deltaX + deltaY*deltaY);
+                float mcp_incidentTheta = std::atan(deltaR/deltaZ);
                 if(mcp_incidentTheta < 0){
                     mcp_incidentTheta += M_PI/2;
                 }
-                // std::cout << "delta r: " << deltaRad << std::endl;
-                // std::cout << "delta z: " << deltaZed << std::endl;
-                // std::cout << "incident theta: " << mcp_incidentTheta << " radians : )" << std::endl;
-
-                // int stepTheta = 73;
-
-                // if (std::abs(mcp_incidentTheta) < (stepTheta-1)*M_PI/180 || std::abs(mcp_incidentTheta) > stepTheta*M_PI/180){
-                //     continue;
-                // }
-                //std::cout << "incident theta: " << mcp_incidentTheta*M_PI/180 << " degrees : )" << std::endl;
-                
-                // if (std::abs(mcp_incidentTheta) > 20*M_PI/180 && std::abs(mcp_incidentTheta) < 160*M_PI/180){
-                //     continue;
-                // }
-
-                // if (std::abs(mcp_incidentTheta) < 80*M_PI/180 || std::abs(mcp_incidentTheta) > 100*M_PI/180){
-                //     continue;
-                // }
-
-                //std::cout << "incident theta: " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
+                streamlog_out (DEBUG6) << "delta r: " << deltaR << std::endl;
+                streamlog_out (DEBUG6) << "delta z: " << deltaZ << std::endl;
+                streamlog_out (DEBUG6) << "incident theta: " << mcp_incidentTheta << " radians : ) or " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
                 
                 double _p = std::sqrt(std::pow(simTrkHit->getMomentum()[0], 2) + std::pow(simTrkHit->getMomentum()[1], 2) + std::pow(simTrkHit->getMomentum()[2], 2));
                 double _mass = mcp->getMass();
                 double _beta = _p / std::sqrt(_p*_p + _mass*_mass); 
-                // if (_beta > 0.8){
-                //     continue;
-                // }
             }
-            else{  
-                //continue;  
+            else{
                 streamlog_out (DEBUG6) << " N.A.";
             }
-
-
             streamlog_out (DEBUG6) << std::endl;
             streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
             streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
             streamlog_out (DEBUG6) << "- Quality = " << simTrkHit->getQuality() << std::endl;
             
-            //std::cout << "incident theta: " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
             ProduceIonisationPoints( simTrkHit );       
             if (_currentLayer == -1)
               continue;
@@ -722,74 +698,78 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double origPos[3] = {pos[0], pos[1], pos[2]};
     entry[2] = -_layerHalfThickness[_currentLayer]; 
     exit[2] = _layerHalfThickness[_currentLayer];
-    //entry points: hit position is in middle of layer. ex: entry_x = x - (z distance to bottom of layer) * px/pz
-
-    // for (int i = 0; i < 2; ++i) {
-    //     entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
-    //     exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
-    // }
-
-    //**************************************************************************
-        //Multiple scattering application
-    //************************************************************************** 
-    double p = std::sqrt(pow(hit->getMomentum()[0],2) + pow(hit->getMomentum()[1],2) + pow(hit->getMomentum()[2],2)); //[GeV/c]
-    double c = 1;
-    double beta = p / std::sqrt(p*p + _currentParticleMass*_currentParticleMass); //std::sqrt(PoverM_sqrd*std::pow(1+PoverM_sqrd, -1)); 
-    
-    double x_0 = 93.7; // [mm] -> radiation length in silicon
-    double sensorT = _layerThickness[_currentLayer]; // [mm] -> sensor thickness
-    double q_charge = 1; 
-
-    static thread_local std::mt19937_64 rng{std::random_device{}()};
-    static thread_local std::normal_distribution<> gauss(0.0, 1.0);
-
-    // normalize direction
-    double mag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
-    dir[0] /= mag;
-    dir[1] /= mag;
-    dir[2] /= mag;
+    // entry points: hit position is in middle of layer. ex: entry_x = x - (z distance to bottom of layer) * px/pz
     for (int i = 0; i < 2; ++i) {
-        entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
-    } 
-
-    double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
-    double num_slices = sensorT / 0.005; //for 5 micron slices in pixel sensor
-    double z_segment = sensorT / num_slices;
-    double z_traveled = 0;
-    while (z_traveled < sensorT){
-
-        pathL_segment = z_segment / fabs(dir[2]); // path length for segment
-
-        // --- Multiple scattering step ---
-        theta_0 = (0.0136/(beta*c*p))*q_charge*std::sqrt(pathL_segment/x_0)
-        *(1+0.038*std::log(pathL_segment*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
-
-        theta_plane_x = gauss(rng)*theta_0;
-        theta_plane_y = gauss(rng)*theta_0;
-        theta_out_x = theta_plane_x + std::atan2(dir[0],dir[2]);
-        theta_out_y = theta_plane_y + std::atan2(dir[1],dir[2]);
-
-        //update dir vector:
-        dir[0] = std::tan(theta_out_x);
-        dir[1] = std::tan(theta_out_y);
-        dir[2] = 1.0;
-
-        // renormalize again
-        double mag2 = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + 1.0);
-        dir[0] /= mag2;
-        dir[1] /= mag2;
-        dir[2] /= mag2;
-
-        //update postion:
-        pos[0] += dir[0] * pathL_segment;
-        pos[1] += dir[1] * pathL_segment;
-        pos[2] += dir[2] * pathL_segment;
-
-        z_traveled += z_segment;
+        entry[i] = origPos[i] + dir[i] * (entry[2] - origPos[2]) / dir[2];
+        exit[i]= origPos[i] + dir[i] * (exit[2] - origPos[2]) / dir[2];
     }
-    //find final exit point
-    for (int i = 0; i < 2; ++i) {exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];} 
+    
+    if(_doMultipleScattering){
+        streamlog_out( DEBUG6 ) << "Applying multiple scattering formula" << std::endl;
+        //**************************************************************************
+        //Multiple scattering implementation based on PDG formula (https://pdg.lbl.gov/2020/reviews/rpp2020-rev-passage-particles-matter.pdf)
+        //************************************************************************** 
+            double p = std::sqrt(pow(hit->getMomentum()[0],2) + pow(hit->getMomentum()[1],2) + pow(hit->getMomentum()[2],2)); //[GeV/c]
+            double c = 1;
+            double beta = p / std::sqrt(p*p + _currentParticleMass*_currentParticleMass);
+            
+            double x_0 = 93.7; // [mm] -> radiation length in silicon
+            double sensorT = _layerThickness[_currentLayer]; // [mm] -> sensor thickness
+            double q_charge = 1; 
 
+            static thread_local std::mt19937_64 rng{std::random_device{}()};
+            static thread_local std::normal_distribution<> gauss(0.0, 1.0);
+
+        // normalize direction
+        double mag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+        dir[0] /= mag;
+        dir[1] /= mag;
+        dir[2] /= mag;
+        for (int i = 0; i < 2; ++i) {
+            entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
+        } 
+
+        double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
+        double num_slices = sensorT / 0.005; //for 5 micron slices in pixel sensor
+        double z_segment = sensorT / num_slices;
+        double z_traveled = 0;
+        while (z_traveled < sensorT){
+
+            pathL_segment = z_segment / fabs(dir[2]); // path length for segment
+
+            // --- Multiple scattering step ---
+            theta_0 = (0.0136/(beta*c*p))*q_charge*std::sqrt(pathL_segment/x_0)
+            *(1+0.038*std::log(pathL_segment*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+
+            theta_plane_x = gauss(rng)*theta_0;
+            theta_plane_y = gauss(rng)*theta_0;
+            theta_out_x = theta_plane_x + std::atan2(dir[0],dir[2]);
+            theta_out_y = theta_plane_y + std::atan2(dir[1],dir[2]);
+
+            //update dir vector:
+            dir[0] = std::tan(theta_out_x);
+            dir[1] = std::tan(theta_out_y);
+            dir[2] = 1.0;
+
+            // renormalize again
+            double mag2 = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + 1.0);
+            dir[0] /= mag2;
+            dir[1] /= mag2;
+            dir[2] /= mag2;
+
+            //update postion:
+            pos[0] += dir[0] * pathL_segment;
+            pos[1] += dir[1] * pathL_segment;
+            pos[2] += dir[2] * pathL_segment;
+
+            z_traveled += z_segment;
+        }
+        //find final exit point
+        for (int i = 0; i < 2; ++i) {
+            exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
+        }
+    }
+    //end of multiple scattering implementation
     
     for (int i = 0; i < 3; ++i) {
         _currentLocalPosition[i] = origPos[i];
@@ -1139,10 +1119,9 @@ void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec,
         float sigma_clock = sigma_clockOverride.value_or(sigma_clockDefault);
         
         float sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
-        float delta = RandGauss::shoot(0., sigma_total);//(0., _timeSmearingSigma); <-- Old timing application
-        //float delta = RandGauss::shoot(0., _timeSmearingSigma); <-- Old timeing application using guassian smearing
+        streamlog_out (DEBUG6) << "sigma_total: " << sigma_total << std::endl; 
+        float delta = RandGauss::shoot(0., sigma_total);
 
-        //std::cout << "sigma_total: " << sigma_total << std::endl; 
         hit->setTime(hit->getTime() + delta);
         streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2] 
             << ", time = " << hit->getTime() << "(delta = " << delta << ")" << std::endl;
