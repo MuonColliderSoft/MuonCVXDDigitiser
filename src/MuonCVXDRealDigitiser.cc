@@ -191,9 +191,20 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
                                (float)0.1);
 
     registerProcessorParameter("SensorType",
-                               "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)",
-                               sensor_type,
-                               int(1));
+                                "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)",
+                                sensor_type,
+                                int(1));
+
+    registerProcessorParameter("zSegmented",
+                                "Enable Z-segmentation along z-axis for barrel layers",
+                                _zSegmented,
+                                false);
+
+    registerProcessorParameter("isBarrel",
+                                "Is the detector a barrel?",
+                                _isBarrel,
+                                true);
+
     registerProcessorParameter("StatisticsFilename",
                                "File name for statistics (None for disabling the feature)",
                                stat_filename,
@@ -410,7 +421,9 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 _electronicNoise,
                 _maxTrkLen,
                 _deltaEne,
-                _map
+                _map,
+                _zSegmented,
+                _isBarrel
             };
 
             vector<std::size_t> histo_buffer {};

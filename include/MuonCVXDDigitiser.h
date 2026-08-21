@@ -95,6 +95,24 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 100) <br>
   * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
  * (default parameter value : 10) <br> 
+ * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
+ * (default parameter value : 0) <br>
+ * @param ZSegmented flag to enable Z-segmentation for barrel layers <br>
+ * (default parameter value : false) <br>
+ * @param SigmaLandau override for Landau sigma <br>
+ * (default parameter value : -1) <br>
+ * @param SigmaTimewalk override for timewalk sigma <br>
+ * (default parameter value : -1) <br>
+ * @param SigmaJitter override for jitter sigma <br>
+ * (default parameter value : -1) <br>
+ * @param SigmaTDC override for TDC sigma <br>
+ * (default parameter value : -1) <br>
+ * @param SigmaClock override for clock sigma <br>
+ * (default parameter value : -1) <br>
+ * @param TRise override for rise time <br>
+ * (default parameter value : -1) <br>
+ * @param LayerIDs list of layer IDs to process <br>
+ * (default parameter value : empty) <br>
  * <br>
  */
 class MuonCVXDDigitiser : public Processor
@@ -104,6 +122,7 @@ public:
     virtual Processor*  newProcessor() { return new MuonCVXDDigitiser ; }
 
     MuonCVXDDigitiser();
+    ~MuonCVXDDigitiser();
 
     /** Called at the begin of the job before anything is read.
     * Use to initialize the processor, e.g. book histograms.
@@ -168,19 +187,25 @@ protected:
     double _timeSmearingSigma;
     int _electronicEffects;
     int _produceFullPattern;
+    int _doMultipleScattering;
     std::vector<int> _layerIDs;
-  
-    MyG4UniversalFluctuationForSi *_fluctuate;
 
+    // time digitization overrides
+    double _t_riseOverride;
+    double _sigma_landauOverride;
+    double _sigma_timewalkOverride;
+    double _sigma_jitterOverride;
+    double _sigma_TDCOverride;
+    double _sigma_clockOverride;
+  
     // charge discretization
     std::vector<double> _DigitizedBins{};
     
     // geometry
     int _numberOfLayers;
     std::vector<int>   _laddersInLayer{};
-#ifdef ZSEGMENTED
+    bool _zSegmented;
     std::vector<int>   _sensorsPerLadder{};
-#endif
     std::vector<float> _layerRadius{};
     std::vector<float> _layerThickness{};
     std::vector<float> _layerHalfThickness{};
@@ -211,6 +236,7 @@ protected:
     double _currentExitPoint[3];
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
+    MyG4UniversalFluctuationForSi *_fluctuate;
 
     /* Charge digitization helpers */
     void ProduceIonisationPoints(SimTrackerHit *hit);

@@ -153,6 +153,8 @@ protected:
     int _electronicEffects;
     int _produceFullPattern;
     int sensor_type;
+    bool _zSegmented;
+    bool _isBarrel;
 
     // geometry
     int _numberOfLayers;
