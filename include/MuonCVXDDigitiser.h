@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "marlin/Processor.h"
 #include "lcio.h"
@@ -95,6 +96,8 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 100) <br>
   * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
  * (default parameter value : 10) <br> 
+ * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
+ * (default parameter value : 0) <br>
  * <br>
  */
 class MuonCVXDDigitiser : public Processor
@@ -104,6 +107,7 @@ public:
     virtual Processor*  newProcessor() { return new MuonCVXDDigitiser ; }
 
     MuonCVXDDigitiser();
+    ~MuonCVXDDigitiser();
 
     /** Called at the begin of the job before anything is read.
     * Use to initialize the processor, e.g. book histograms.
@@ -168,10 +172,17 @@ protected:
     double _timeSmearingSigma;
     int _electronicEffects;
     int _produceFullPattern;
+    int _doMultipleScattering;
     std::vector<int> _layerIDs;
-  
-    MyG4UniversalFluctuationForSi *_fluctuate;
 
+    // time digitization overrides
+    double _t_riseOverride;
+    double _sigma_landauOverride;
+    double _sigma_timewalkOverride;
+    double _sigma_jitterOverride;
+    double _sigma_TDCOverride;
+    double _sigma_clockOverride;
+  
     // charge discretization
     std::vector<double> _DigitizedBins{};
     
@@ -211,6 +222,7 @@ protected:
     double _currentExitPoint[3];
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
+    MyG4UniversalFluctuationForSi *_fluctuate;
 
     /* Charge digitization helpers */
     void ProduceIonisationPoints(SimTrackerHit *hit);
