@@ -35,13 +35,17 @@ using dd4hep::rec::SurfaceMap;
 using dd4hep::rec::ISurface;
 using dd4hep::rec::Vector2D;
 using dd4hep::rec::Vector3D;
+
+MuonCVXDDigitiser aMuonCVXDDigitiser;
+
 MuonCVXDDigitiser::MuonCVXDDigitiser() :
     Processor("MuonCVXDDigitiser"),
     _nRun(0),
     _nEvt(0),
     _totEntries(0),
     _map(nullptr),
-    _currentLayer(0)
+    _currentLayer(0),
+    _fluctuate(nullptr)
 {
     _description = "MuonCVXDDigitiser should create VTX TrackerHits from SimTrackerHits";
     registerInputCollection(LCIO::SIMTRACKERHIT,
@@ -217,7 +221,15 @@ void MuonCVXDDigitiser::init()
     _nRun = 0 ;
     _nEvt = 0 ;
     _totEntries = 0;
-    _fluctuate = std::make_unique<MyG4UniversalFluctuationForSi>();
+    _fluctuate = new MyG4UniversalFluctuationForSi();
+}
+
+MuonCVXDDigitiser::~MuonCVXDDigitiser()
+{
+    if (_fluctuate) {
+        delete _fluctuate;
+        _fluctuate = nullptr;
+    }
 }
 void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 { 
@@ -615,7 +627,6 @@ void MuonCVXDDigitiser::check(LCEvent *evt)
 void MuonCVXDDigitiser::end()
 {
     streamlog_out(DEBUG) << "   end called  " << std::endl;
-    _fluctuate.reset();
 }
 /** Function calculates local coordinates of the sim hit 
  * in the given ladder and local momentum of particle. 

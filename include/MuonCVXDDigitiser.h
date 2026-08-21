@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 #include <optional>
-#include <memory>
 
 #include "marlin/Processor.h"
 #include "lcio.h"
@@ -108,6 +107,7 @@ public:
     virtual Processor*  newProcessor() { return new MuonCVXDDigitiser ; }
 
     MuonCVXDDigitiser();
+    ~MuonCVXDDigitiser();
 
     /** Called at the begin of the job before anything is read.
     * Use to initialize the processor, e.g. book histograms.
@@ -175,8 +175,6 @@ protected:
     int _doMultipleScattering;
     std::vector<int> _layerIDs;
   
-    std::unique_ptr<MyG4UniversalFluctuationForSi> _fluctuate;
-
     // charge discretization
     std::vector<double> _DigitizedBins{};
     
@@ -216,6 +214,7 @@ protected:
     double _currentExitPoint[3];
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
+    MyG4UniversalFluctuationForSi *_fluctuate;
 
     /* Charge digitization helpers */
     void ProduceIonisationPoints(SimTrackerHit *hit);
