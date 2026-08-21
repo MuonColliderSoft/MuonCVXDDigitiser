@@ -174,6 +174,14 @@ protected:
     int _produceFullPattern;
     int _doMultipleScattering;
     std::vector<int> _layerIDs;
+
+    // time digitization overrides
+    double _t_riseOverride;
+    double _sigma_landauOverride;
+    double _sigma_timewalkOverride;
+    double _sigma_jitterOverride;
+    double _sigma_TDCOverride;
+    double _sigma_clockOverride;
   
     // charge discretization
     std::vector<double> _DigitizedBins{};
@@ -226,13 +234,7 @@ protected:
     void ChargeDigitizer(SimTrackerHitImplVec &simTrkVec);
 
     /* Time digitization helpers */
-    void TimeSmearer(SimTrackerHitImplVec &simTrkVec,
-                                    std::optional<float> t_riseOverride = std::nullopt, 
-                                    std::optional<float> sigma_landauOverride = std::nullopt,
-                                    std::optional<float> sigma_timewalkOverride = std::nullopt,
-                                    std::optional<float> sigma_jitterOverride = std::nullopt,
-                                    std::optional<float> sigma_TDCOverride = std::nullopt,
-                                    std::optional<float> sigma_clockOverride = std::nullopt);
+    void TimeSmearer(SimTrackerHitImplVec &simTrkVec);
     void TimeDigitizer(SimTrackerHitImplVec &simTrkVec);
 
     /* Reconstruction of measurement and helpers */

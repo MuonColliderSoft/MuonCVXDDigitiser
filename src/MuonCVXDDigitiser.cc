@@ -188,9 +188,34 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _layerIDs,
                                {});
     registerProcessorParameter("DoMultipleScattering",
-                               "Flag to enable multiple scattering of the track inside the sensor.",
-                               _doMultipleScattering,
-                               0);
+                                "Flag to enable multiple scattering of the track inside the sensor.",
+                                _doMultipleScattering,
+                                0);
+
+    registerProcessorParameter("tRise",
+                                "Optional override for t_rise (ns). -1 means use default.",
+                                _t_riseOverride,
+                                -1.0);
+    registerProcessorParameter("sigmaLandau",
+                                "Optional override for sigma_landau (ns). -1 means use default.",
+                                _sigma_landauOverride,
+                                -1.0);
+    registerProcessorParameter("sigmaTimewalk",
+                                "Optional override for sigma_timewalk (ns). -1 means use default.",
+                                _sigma_timewalkOverride,
+                                -1.0);
+    registerProcessorParameter("sigmaJitter",
+                                "Optional override for sigma_jitter (ns). -1 means use default.",
+                                _sigma_jitterOverride,
+                                -1.0);
+    registerProcessorParameter("sigmaTDC",
+                                "Optional override for sigma_TDC (ns). -1 means use default.",
+                                _sigma_TDCOverride,
+                                -1.0);
+    registerProcessorParameter("sigmaClock",
+                                "Optional override for sigma_clock (ns). -1 means use default.",
+                                _sigma_clockOverride,
+                                -1.0);
 }
 void MuonCVXDDigitiser::init()
 { 
@@ -1096,13 +1121,7 @@ void MuonCVXDDigitiser::ChargeDigitizer(SimTrackerHitImplVec &simTrkVec)
  * - correlated across pixels, uncorrelated across clusters
  * - correlated within the event, un-correlate 
 */
-void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec,
-                                    std::optional<float> t_riseOverride, 
-                                    std::optional<float> sigma_landauOverride,
-                                    std::optional<float> sigma_timewalkOverride,
-                                    std::optional<float> sigma_jitterOverride,
-                                    std::optional<float> sigma_TDCOverride,
-                                    std::optional<float> sigma_clockOverride)
+void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
 {
     streamlog_out (DEBUG6) << "Adding resolution effect to timing measurements" << std::endl;
     for (int i = 0; i < (int)simTrkVec.size(); ++i)
@@ -1110,20 +1129,18 @@ void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec,
         // -- Realistic timing in planar sensors application default values: -- //
         SimTrackerHitImpl *hit = simTrkVec[i];
         float t_riseDefault = (8.8*_layerThickness[_currentLayer]*1e3 + 152.1)*1e-3; //[ns]
-        //Check if default values are override: 
-        float t_rise = t_riseOverride.value_or(t_riseDefault);
+        float t_rise = (_t_riseOverride > -1.0) ? _t_riseOverride : t_riseDefault;
         float sigma_landauDefault   = 0.03 * _layerThickness[_currentLayer]/0.05;  // [ns]from sensor thickness & charge deposition fluctuations - 30ps/50microns
         float sigma_timewalkDefault = 0.1 * t_rise; //[ns] t_rise * 0.1
         float sigma_jitterDefault   = (_electronicNoise*t_rise)/(80000 * _layerThickness[_currentLayer]);  // [ns] Q_noise/slope in charge over time 80e/micron = 80000e/mm
-        float sigma_TDCDefault      = 0.025/std::sqrt(12);  // time to digital converter using 25 ns for deltaT 
+        float sigma_TDCDefault      = 0.025/std::sqrt(12);  // time to digital converter using 25 ns for deltaT
         float sigma_clockDefault    = 0.005;  // fixed by clock quality 5ps
         
-        //Check if default values are override: 
-        float sigma_landau = sigma_landauOverride.value_or(sigma_landauDefault);
-        float sigma_timewalk = sigma_timewalkOverride.value_or(sigma_timewalkDefault);
-        float sigma_jitter = sigma_jitterOverride.value_or(sigma_jitterDefault);
-        float sigma_TDC = sigma_TDCOverride.value_or(sigma_TDCDefault);
-        float sigma_clock = sigma_clockOverride.value_or(sigma_clockDefault);
+        float sigma_landau = (_sigma_landauOverride > -1.0) ? _sigma_landauOverride : sigma_landauDefault;
+        float sigma_timewalk = (_sigma_timewalkOverride > -1.0) ? _sigma_timewalkOverride : sigma_timewalkDefault;
+        float sigma_jitter = (_sigma_jitterOverride > -1.0) ? _sigma_jitterOverride : sigma_jitterDefault;
+        float sigma_TDC = (_sigma_TDCOverride > -1.0) ? _sigma_TDCOverride : sigma_TDCDefault;
+        float sigma_clock = (_sigma_clockOverride > -1.0) ? _sigma_clockOverride : sigma_clockDefault;
         
         float sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
         streamlog_out (DEBUG6) << "sigma_total: " << sigma_total << std::endl; 
