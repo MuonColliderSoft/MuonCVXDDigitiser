@@ -189,9 +189,8 @@ protected:
     // geometry
     int _numberOfLayers;
     std::vector<int>   _laddersInLayer{};
-#ifdef ZSEGMENTED
+    bool _zSegmented;
     std::vector<int>   _sensorsPerLadder{};
-#endif
     std::vector<float> _layerRadius{};
     std::vector<float> _layerThickness{};
     std::vector<float> _layerHalfThickness{};

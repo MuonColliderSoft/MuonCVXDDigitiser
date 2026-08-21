@@ -216,6 +216,10 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                 "Optional override for sigma_clock (ns). -1 means use default.",
                                 _sigma_clockOverride,
                                 -1.0);
+    registerProcessorParameter("zSegmented",
+                                "Enable sensor segmentation along z-axis for barrel layers only.",
+                                _zSegmented,
+                                false);
 }
 void MuonCVXDDigitiser::init()
 { 
@@ -299,7 +303,7 @@ void MuonCVXDDigitiser::LoadGeometry()
       throw Exception( err.str() ) ;
     }
     _laddersInLayer.resize(_numberOfLayers);
-    if(isVertex==1 && isBarrel==1) //Zsegmented for vertex barrel only in MuColl_v1 (3 TeV) and both 10 TeV (MAIA_v0 & MuSIC_v2) geometries
+    if(_zSegmented && isBarrel)
       _sensorsPerLadder.resize(_numberOfLayers);
     _layerHalfPhi.resize(_numberOfLayers);
     _layerHalfThickness.resize(_numberOfLayers);
@@ -325,7 +329,7 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 	  _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
-	  if(isVertex==1){ //Zsegmented layers
+	  if(_zSegmented){ //Zsegmented layers
 	    _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
 	    _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
           }
@@ -348,15 +352,11 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  // Note: petal-like structure but current geometry only defines a single sensitive element for the whole disk afaics.
 	  // The structure is defined in /opt/ilcsoft/muonc/DD4hep/v01-25-01/DDRec/include/DDRec/DetectorData.h
 
-      //_petalsInLayer[curr_layer] = z_layout.ladderNumber;
-	  //_layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
-	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
+      _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
-
-	  //_sensorsPerPetal[curr_layer] = z_layout.sensorsPerPetal;
-      // CS: does the petal sensitive length include all petal sub-sensors?
-	  _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
-
+	
+      _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
+	
 	  _layerPetalInnerWidth[curr_layer] = z_layout.widthInnerSensitive * dd4hep::cm / dd4hep::mm ;
       _layerPetalOuterWidth[curr_layer] = z_layout.widthOuterSensitive * dd4hep::cm / dd4hep::mm ;
       _petalsInLayer[curr_layer] = z_layout.petalNumber;
