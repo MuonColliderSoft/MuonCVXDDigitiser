@@ -3,7 +3,6 @@
 
 #include <string>
 #include <vector>
-#include <optional>
 
 #include "marlin/Processor.h"
 #include "lcio.h"
@@ -98,6 +97,22 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 10) <br> 
  * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
  * (default parameter value : 0) <br>
+ * @param ZSegmented flag to enable Z-segmentation for barrel layers <br>
+ * (default parameter value : false) <br>
+ * @param SigmaLandau override for Landau sigma <br>
+ * (default parameter value : -1) <br>
+ * @param SigmaTimewalk override for timewalk sigma <br>
+ * (default parameter value : -1) <br>
+ * @param SigmaJitter override for jitter sigma <br>
+ * (default parameter value : -1) <br>
+ * @param SigmaTDC override for TDC sigma <br>
+ * (default parameter value : -1) <br>
+ * @param SigmaClock override for clock sigma <br>
+ * (default parameter value : -1) <br>
+ * @param TRise override for rise time <br>
+ * (default parameter value : -1) <br>
+ * @param LayerIDs list of layer IDs to process <br>
+ * (default parameter value : empty) <br>
  * <br>
  */
 class MuonCVXDDigitiser : public Processor

@@ -1,5 +1,5 @@
 #include "MuonCVXDDigitiser.h"
-#include <optional>
+
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -192,31 +192,31 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                 _doMultipleScattering,
                                 0);
 
-    registerProcessorParameter("tRise",
+    registerProcessorParameter("TRise",
                                 "Optional override for t_rise (ns). -1 means use default.",
                                 _t_riseOverride,
                                 -1.0);
-    registerProcessorParameter("sigmaLandau",
+    registerProcessorParameter("SigmaLandau",
                                 "Optional override for sigma_landau (ns). -1 means use default.",
                                 _sigma_landauOverride,
                                 -1.0);
-    registerProcessorParameter("sigmaTimewalk",
+    registerProcessorParameter("SigmaTimewalk",
                                 "Optional override for sigma_timewalk (ns). -1 means use default.",
                                 _sigma_timewalkOverride,
                                 -1.0);
-    registerProcessorParameter("sigmaJitter",
+    registerProcessorParameter("SigmaJitter",
                                 "Optional override for sigma_jitter (ns). -1 means use default.",
                                 _sigma_jitterOverride,
                                 -1.0);
-    registerProcessorParameter("sigmaTDC",
+    registerProcessorParameter("SigmaTDC",
                                 "Optional override for sigma_TDC (ns). -1 means use default.",
                                 _sigma_TDCOverride,
                                 -1.0);
-    registerProcessorParameter("sigmaClock",
+    registerProcessorParameter("SigmaClock",
                                 "Optional override for sigma_clock (ns). -1 means use default.",
                                 _sigma_clockOverride,
                                 -1.0);
-    registerProcessorParameter("zSegmented",
+    registerProcessorParameter("ZSegmented",
                                 "Enable sensor segmentation along z-axis for barrel layers only.",
                                 _zSegmented,
                                 false);
