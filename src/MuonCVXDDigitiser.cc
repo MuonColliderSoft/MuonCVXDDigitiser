@@ -153,9 +153,13 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _timeMax,
                                10.000);
     registerProcessorParameter("TimeSmearingSigma",
-                                "Effective intrinsic time measurement resolution effects (ns).",
+                                "Constant intrinsic time measurement resolution (ns), used when TimeSmearingModel = 1.",
                                 _timeSmearingSigma, 
                                 0.05);
+    registerProcessorParameter("TimeSmearingModel",
+                               "Time smearing model: 0 = none, 1 = constant sigma (TimeSmearingSigma), 2 = realistic, derived from sensor thickness.",
+                               _timeSmearingModel,
+                               2);
     registerProcessorParameter("ElectronicEffects",
                                "Apply Electronic Effects",
                                _electronicEffects,
@@ -498,7 +502,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             if (_electronicEffects != 0) GainSmearer(simTrkHitVec);
 	        ApplyThreshold(simTrkHitVec);
 	        if (_DigitizeCharge != 0) ChargeDigitizer(simTrkHitVec);
-            if (_timeSmearingSigma > 0) TimeSmearer(simTrkHitVec);
+            if (_timeSmearingModel != 0) TimeSmearer(simTrkHitVec);
             if (_DigitizeTime != 0) TimeDigitizer(simTrkHitVec);
 	    
             //**************************************************************************
@@ -1118,10 +1122,14 @@ void MuonCVXDDigitiser::ChargeDigitizer(SimTrackerHitImplVec &simTrkVec)
 void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
 {
     streamlog_out (DEBUG6) << "Adding resolution effect to timing measurements" << std::endl;
-    for (int i = 0; i < (int)simTrkVec.size(); ++i)
+
+    // The resolution depends on the layer, not on the individual hit, so it is
+    // evaluated once here rather than inside the loop below.
+    double sigma_total = _timeSmearingSigma;
+
+    if (_timeSmearingModel == 2)
     {
         // -- Realistic timing in planar sensors application default values: -- //
-        SimTrackerHitImpl *hit = simTrkVec[i];
         double t_riseDefault = (8.8*_layerThickness[_currentLayer]*1e3 + 152.1)*1e-3; //[ns]
         double t_rise = (_t_riseOverride >= 0.) ? _t_riseOverride : t_riseDefault;
         double sigma_landauDefault   = 0.03 * _layerThickness[_currentLayer]/0.05;  // [ns]from sensor thickness & charge deposition fluctuations - 30ps/50microns
@@ -1136,8 +1144,15 @@ void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
         double sigma_TDC = (_sigma_TDCOverride >= 0.) ? _sigma_TDCOverride : sigma_TDCDefault;
         double sigma_clock = (_sigma_clockOverride >= 0.) ? _sigma_clockOverride : sigma_clockDefault;
 
-        double sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
-        streamlog_out (DEBUG6) << "sigma_total: " << sigma_total << std::endl;
+        sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
+    }
+
+    streamlog_out (DEBUG6) << "sigma_total: " << sigma_total << std::endl;
+    if (sigma_total <= 0.) return;
+
+    for (int i = 0; i < (int)simTrkVec.size(); ++i)
+    {
+        SimTrackerHitImpl *hit = simTrkVec[i];
         double delta = RandGauss::shoot(0., sigma_total);
 
         hit->setTime(hit->getTime() + delta);

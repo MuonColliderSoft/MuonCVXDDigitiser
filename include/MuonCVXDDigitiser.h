@@ -95,6 +95,9 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 100) <br>
   * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
  * (default parameter value : 10) <br> 
+ * @param TimeSmearingModel time smearing model: 0 = none, 1 = constant sigma taken from
+ * TimeSmearingSigma, 2 = realistic resolution derived from the sensor thickness <br>
+ * (default parameter value : 2) <br>
  * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
  * (default parameter value : 0) <br>
  * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
@@ -186,6 +189,7 @@ protected:
     double _timeMax;
     int _TimeDigitizeBinning;
     double _timeSmearingSigma;
+    int _timeSmearingModel;
     int _electronicEffects;
     int _produceFullPattern;
     int _doMultipleScattering;
