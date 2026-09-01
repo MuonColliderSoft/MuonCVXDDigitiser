@@ -60,9 +60,9 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
     _deltaEne(maxEnergyDelta),
     signals(),
     surf_map(s_map),
+    cell_decoder(sensor.GetCellIDFormatStr()),
     _zSegmented(zSegmented),
-    _isBarrel(isBarrel),
-    cell_decoder(sensor.GetCellIDFormatStr())
+    _isBarrel(isBarrel)
 {
     _fluctuate = new G4UniversalFluctuation();
 }
