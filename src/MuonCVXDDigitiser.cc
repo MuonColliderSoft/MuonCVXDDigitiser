@@ -470,21 +470,19 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             EVENT::MCParticle *mcp = simTrkHit->getMCParticle();
             if (mcp) {
                 streamlog_out (DEBUG6) << simTrkHit->getMCParticle()->getPDG();
-                float deltaZ = abs(simTrkHit->getPosition()[2] -  mcp->getVertex()[2]);
-                float deltaX = simTrkHit->getPosition()[0] - mcp->getVertex()[0];
-                float deltaY = simTrkHit->getPosition()[1] - mcp->getVertex()[1];
-                float deltaR = std::sqrt(deltaX*deltaX + deltaY*deltaY);
-                float mcp_incidentTheta = std::atan(deltaR/deltaZ);
-                if(mcp_incidentTheta < 0){
-                    mcp_incidentTheta += M_PI/2;
+                if ( streamlog_level(DEBUG6) ) {
+                    double deltaZ = std::fabs(simTrkHit->getPosition()[2] - mcp->getVertex()[2]);
+                    double deltaX = simTrkHit->getPosition()[0] - mcp->getVertex()[0];
+                    double deltaY = simTrkHit->getPosition()[1] - mcp->getVertex()[1];
+                    double deltaR = std::sqrt(deltaX*deltaX + deltaY*deltaY);
+                    double incidentTheta = std::atan2(deltaR, deltaZ);
+                    double p = std::sqrt(std::pow(simTrkHit->getMomentum()[0], 2) + std::pow(simTrkHit->getMomentum()[1], 2) + std::pow(simTrkHit->getMomentum()[2], 2));
+                    double mass = mcp->getMass();
+                    streamlog_out (DEBUG6) << "delta r: " << deltaR << std::endl;
+                    streamlog_out (DEBUG6) << "delta z: " << deltaZ << std::endl;
+                    streamlog_out (DEBUG6) << "incident theta: " << incidentTheta << " radians or " << incidentTheta*(180/M_PI) << " degrees" << std::endl;
+                    streamlog_out (DEBUG6) << "beta: " << p / std::sqrt(p*p + mass*mass) << std::endl;
                 }
-                streamlog_out (DEBUG6) << "delta r: " << deltaR << std::endl;
-                streamlog_out (DEBUG6) << "delta z: " << deltaZ << std::endl;
-                streamlog_out (DEBUG6) << "incident theta: " << mcp_incidentTheta << " radians : ) or " << mcp_incidentTheta*(180/M_PI) << " degrees : )" << std::endl;
-                
-                double _p = std::sqrt(std::pow(simTrkHit->getMomentum()[0], 2) + std::pow(simTrkHit->getMomentum()[1], 2) + std::pow(simTrkHit->getMomentum()[2], 2));
-                double _mass = mcp->getMass();
-                streamlog_out (DEBUG6) << "beta: " << _p / std::sqrt(_p*_p + _mass*_mass) << std::endl;
             }
             else{
                 streamlog_out (DEBUG6) << " N.A.";
