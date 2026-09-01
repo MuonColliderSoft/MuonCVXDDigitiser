@@ -835,8 +835,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         double y = origPos[1] + tany * (z - origPos[2]);
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
         // length in mm, meanLoss eloss in MeV.
-        double de = _fluctuate->SampleFluctuations(double(_currentParticleMomentum * dd4hep::keV / dd4hep::GeV),
-                                                   double(_currentParticleMass * dd4hep::keV / dd4hep::GeV),
+        double de = _fluctuate->SampleFluctuations(double(_currentParticleMomentum / dd4hep::MeV),
+                                                   double(_currentParticleMass / dd4hep::MeV),
                                                    _cutOnDeltaRays,
                                                    segmentLength,
                                                    double(dEmean / dd4hep::MeV)) * dd4hep::MeV;
