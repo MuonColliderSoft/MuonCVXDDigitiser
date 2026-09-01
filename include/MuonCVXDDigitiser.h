@@ -204,7 +204,7 @@ protected:
     double _sigma_clockOverride;
 
     // charge discretization
-    std::vector<double> _DigitizedBins{};
+    std::vector<std::vector<double>> _DigitizedBins{};  // one bin table per layer
     
     // geometry
     int _numberOfLayers;
