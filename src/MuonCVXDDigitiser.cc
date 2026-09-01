@@ -216,9 +216,9 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _sigma_clockOverride,
                                -1.0);
     registerProcessorParameter("ZSegmented",
-                               "Enable sensor segmentation along z-axis for barrel layers only.",
+                               "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on.",
                                _zSegmented,
-                               false);
+                               -1);
 }
 void MuonCVXDDigitiser::init()
 { 
@@ -301,8 +301,14 @@ void MuonCVXDDigitiser::LoadGeometry()
                                  << _subDetName << " in SurfaceManager " ;
       throw Exception( err.str() ) ;
     }
+    // Resolve the ZSegmented tri-state. Auto (< 0) reproduces the geometry-derived
+    // behaviour: only the vertex barrel is segmented along z.
+    bool zSegmented = (_zSegmented < 0) ? (isVertex && isBarrel) : (_zSegmented > 0 && isBarrel);
+    streamlog_out(DEBUG5) << "Z-segmentation " << (zSegmented ? "enabled" : "disabled")
+                          << " (ZSegmented=" << _zSegmented << ")" << std::endl;
+
     _laddersInLayer.resize(_numberOfLayers);
-    if(_zSegmented && isBarrel)
+    if(zSegmented)
       _sensorsPerLadder.resize(_numberOfLayers);
     _layerHalfPhi.resize(_numberOfLayers);
     _layerHalfThickness.resize(_numberOfLayers);
@@ -328,7 +334,7 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 	  _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
-	  if(_zSegmented){ //Zsegmented layers
+	  if(zSegmented){ //Zsegmented layers
 	    _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
 	    _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
           }

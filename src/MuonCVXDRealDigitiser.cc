@@ -198,7 +198,7 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
     registerProcessorParameter("ZSegmented",
                                "Enable sensor segmentation along z-axis for barrel layers only.",
                                _zSegmented,
-                               false);
+                               true);
 
     registerProcessorParameter("IsBarrel",
                                "Sub-detector is a barrel (as opposed to an endcap).",

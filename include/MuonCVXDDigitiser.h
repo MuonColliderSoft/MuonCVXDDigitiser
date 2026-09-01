@@ -97,8 +97,9 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 10) <br> 
  * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
  * (default parameter value : 0) <br>
- * @param ZSegmented flag to enable Z-segmentation for barrel layers <br>
- * (default parameter value : false) <br>
+ * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
+ * vertex barrel, reproducing the geometry-derived behaviour), 0 = off, 1 = on <br>
+ * (default parameter value : -1) <br>
  * @param SigmaLandau override for Landau sigma <br>
  * (default parameter value : -1, i.e. use the thickness-derived default) <br>
  * @param SigmaTimewalk override for timewalk sigma <br>
@@ -204,7 +205,7 @@ protected:
     // geometry
     int _numberOfLayers;
     std::vector<int>   _laddersInLayer{};
-    bool _zSegmented;
+    int _zSegmented;
     std::vector<int>   _sensorsPerLadder{};
     std::vector<float> _layerRadius{};
     std::vector<float> _layerThickness{};

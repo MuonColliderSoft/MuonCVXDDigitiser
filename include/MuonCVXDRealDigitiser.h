@@ -91,7 +91,7 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * @param SensorType Sensor model to be used (0 : ChipRD53A, 1 : Trivial) <br>
  * (default parameter value : 1) <br>
  * @param ZSegmented flag to enable sensor segmentation along z for barrel layers <br>
- * (default parameter value : false) <br>
+ * (default parameter value : true) <br>
  * @param IsBarrel flag telling whether the sub-detector is a barrel (as opposed to an endcap) <br>
  * (default parameter value : true) <br>
  * @param StatisticsFilename File name for statistics (None for disabling the feature) <br>
