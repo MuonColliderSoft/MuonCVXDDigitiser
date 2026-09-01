@@ -730,7 +730,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         //Multiple scattering implementation based on PDG formula (https://pdg.lbl.gov/2020/reviews/rpp2020-rev-passage-particles-matter.pdf)
         //**************************************************************************
             double p = std::sqrt(pow(hit->getMomentum()[0],2) + pow(hit->getMomentum()[1],2) + pow(hit->getMomentum()[2],2)); //[GeV/c]
-            double c = 1;
             double beta = p / std::sqrt(p*p + _currentParticleMass*_currentParticleMass);
 
             double x_0 = 93.7; // [mm] -> radiation length in silicon
@@ -758,7 +757,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             pathL_segment = z_segment / fabs(dir[2]); // path length for segment
 
             // --- Multiple scattering step ---
-            theta_0 = (0.0136/(beta*c*p))*q_charge*std::sqrt(pathL_segment/x_0)
+            // 0.0136 GeV is the PDG 13.6 MeV constant; natural units (c = 1) with p in GeV/c
+            theta_0 = (0.0136/(beta*p))*q_charge*std::sqrt(pathL_segment/x_0)
             *(1+0.038*std::log(pathL_segment*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
 
             theta_plane_x = gauss(rng)*theta_0;
