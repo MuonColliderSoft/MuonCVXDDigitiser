@@ -150,10 +150,10 @@ protected:
     int _debug;
     int _totEntries;
     std::string _subDetName;
-    bool isBarrel;
-    bool isVertex;
-    bool isInnerTracker;
-    bool isOuterTracker;
+    bool isBarrel{false};
+    bool isVertex{false};
+    bool isInnerTracker{false};
+    bool isOuterTracker{false};
 
     // input/output collections
     std::string _colName;
