@@ -41,8 +41,7 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
                                            double maxTrkLen,
                                            double maxEnergyDelta,
                                            const SurfaceMap* s_map,
-                                           bool zSegmented,
-                                           bool isBarrel):
+                                           bool zSegmented):
     curr_time(starttime + wsize / 2),  // window centered in the middle
     time_click(wsize),
     _htable(htable),
@@ -61,8 +60,7 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
     signals(),
     surf_map(s_map),
     cell_decoder(sensor.GetCellIDFormatStr()),
-    _zSegmented(zSegmented),
-    _isBarrel(isBarrel)
+    _zSegmented(zSegmented)
 {
     _fluctuate = new G4UniversalFluctuation();
 }
@@ -235,7 +233,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     // Store local position in mm
     pos[0] = lv[0] / dd4hep::mm;
     pos[1] = lv[1] / dd4hep::mm;
-    if (_isBarrel && _zSegmented) {
+    if (_zSegmented) {
         // See MuonCVXDDigitiser::processEvent
         int segment_id = cell_decoder(hit)["sensor"];
 

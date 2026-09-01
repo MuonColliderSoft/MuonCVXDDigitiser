@@ -45,8 +45,7 @@ public:
                          double maxTrkLen,
                          double maxEnergyDelta,
                          const SurfaceMap* s_map,
-                         bool zSegmented,
-                         bool isBarrel);
+                         bool zSegmented);
     virtual ~DetElemSlidingWindow();
     bool active();
     int process();
@@ -78,7 +77,6 @@ private:
     CellIDDecoder<SimTrackerHit> cell_decoder;
     G4UniversalFluctuation* _fluctuate;
     bool _zSegmented;
-    bool _isBarrel;
 };
 
 

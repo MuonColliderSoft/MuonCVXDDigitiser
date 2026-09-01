@@ -196,14 +196,9 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
                                int(1));
 
     registerProcessorParameter("ZSegmented",
-                               "Enable sensor segmentation along z-axis for barrel layers only.",
+                               "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on.",
                                _zSegmented,
-                               true);
-
-    registerProcessorParameter("IsBarrel",
-                               "Sub-detector is a barrel (as opposed to an endcap).",
-                               _isBarrel,
-                               true);
+                               -1);
 
     registerProcessorParameter("StatisticsFilename",
                                "File name for statistics (None for disabling the feature)",
@@ -217,6 +212,24 @@ void MuonCVXDRealDigitiser::init()
     streamlog_out(DEBUG) << "   init called  " << std::endl ;
 
     printParameters() ;
+
+    // Determine if we're handling barrel or endcap geometry
+    if (_subDetName.find("Barrel") != std::string::npos) {
+      _isBarrel = true;
+    } else if (_subDetName.find("Endcap") != std::string::npos) {
+      _isBarrel = false;
+    } else {
+      std::stringstream err  ; err << " Could not determine sub-detector type for: " << _subDetName;
+      throw Exception ( err.str() );
+    }
+    _isVertex = _subDetName.find("Vertex") != std::string::npos;
+
+    // Resolve the ZSegmented tri-state. Auto (< 0) enables z-segmentation for the vertex
+    // barrel only, matching MuonCVXDDigitiser.
+    _zSegmentedActive = (_zSegmented < 0) ? (_isVertex && _isBarrel)
+                                          : (_zSegmented > 0 && _isBarrel);
+    streamlog_out(DEBUG5) << "Z-segmentation " << (_zSegmentedActive ? "enabled" : "disabled")
+                          << " (ZSegmented=" << _zSegmented << ")" << std::endl;
 
     _nRun = 0 ;
     _nEvt = 0 ;
@@ -422,8 +435,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 _maxTrkLen,
                 _deltaEne,
                 _map,
-                _zSegmented,
-                _isBarrel
+                _zSegmentedActive
             };
 
             vector<std::size_t> histo_buffer {};

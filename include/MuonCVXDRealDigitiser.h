@@ -90,10 +90,9 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 10) <br> 
  * @param SensorType Sensor model to be used (0 : ChipRD53A, 1 : Trivial) <br>
  * (default parameter value : 1) <br>
- * @param ZSegmented flag to enable sensor segmentation along z for barrel layers <br>
- * (default parameter value : true) <br>
- * @param IsBarrel flag telling whether the sub-detector is a barrel (as opposed to an endcap) <br>
- * (default parameter value : true) <br>
+ * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
+ * vertex barrel), 0 = off, 1 = on <br>
+ * (default parameter value : -1) <br>
  * @param StatisticsFilename File name for statistics (None for disabling the feature) <br>
  * (default parameter value : None) <br>
  * <br>
@@ -161,8 +160,10 @@ protected:
     int _electronicEffects;
     int _produceFullPattern;
     int sensor_type;
-    bool _zSegmented;
-    bool _isBarrel;
+    int _zSegmented;
+    bool _isBarrel{false};
+    bool _isVertex{false};
+    bool _zSegmentedActive{false};
 
     // geometry
     int _numberOfLayers;
