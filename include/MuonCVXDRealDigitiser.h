@@ -88,6 +88,14 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 100) <br>
   * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
  * (default parameter value : 10) <br> 
+ * @param SensorType Sensor model to be used (0 : ChipRD53A, 1 : Trivial) <br>
+ * (default parameter value : 1) <br>
+ * @param ZSegmented flag to enable sensor segmentation along z for barrel layers <br>
+ * (default parameter value : false) <br>
+ * @param IsBarrel flag telling whether the sub-detector is a barrel (as opposed to an endcap) <br>
+ * (default parameter value : true) <br>
+ * @param StatisticsFilename File name for statistics (None for disabling the feature) <br>
+ * (default parameter value : None) <br>
  * <br>
  */
 class MuonCVXDRealDigitiser : public Processor
