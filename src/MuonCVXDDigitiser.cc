@@ -761,7 +761,17 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         exit[i]= origPos[i] + dir[i] * (exit[2] - origPos[2]) / dir[2];
     }
 
-    if(_doMultipleScattering){
+    // PDG multiple-scattering charge number z: |q| in units of e. Fall back to unit charge
+    // when the hit carries no MC particle, matching the electron-mass fallback in
+    // FindLocalPosition(). Neutrals are skipped: with z = 0 the log term is log(0) and
+    // theta_0 would evaluate to 0 * -inf = NaN.
+    EVENT::MCParticle *ms_mcp = hit->getMCParticle();
+    double q_charge = (ms_mcp != nullptr) ? std::fabs(ms_mcp->getCharge()) : 1.0;
+
+    if (_doMultipleScattering && q_charge == 0.)
+        streamlog_out( DEBUG6 ) << "Neutral particle, skipping multiple scattering" << std::endl;
+
+    if(_doMultipleScattering && q_charge > 0.){
         streamlog_out( DEBUG6 ) << "Applying multiple scattering formula" << std::endl;
         //**************************************************************************
         //Multiple scattering implementation based on PDG formula (https://pdg.lbl.gov/2020/reviews/rpp2020-rev-passage-particles-matter.pdf)
@@ -771,7 +781,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 
             double x_0 = 93.7; // [mm] -> radiation length in silicon
             double sensorT = _layerThickness[_currentLayer]; // [mm] -> sensor thickness
-            double q_charge = 1;
 
         // normalize direction
         double mag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
