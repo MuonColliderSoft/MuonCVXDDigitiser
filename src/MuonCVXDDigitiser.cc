@@ -881,7 +881,15 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double trackLength = std::min(_maxTrkLen, pathLength);
 
     _numberOfSegments = ceil(trackLength / _segmentLength );
-    double dEmean = (dd4hep::keV * _energyLoss * trackLength) / ((double)_numberOfSegments);
+
+    // Anchor the mean energy per segment to the energy Geant4 actually deposited, rather than
+    // to the _energyLoss * trackLength parametrisation. The deposit is the truth for the total;
+    // SampleFluctuations() below still supplies the segment-to-segment Landau structure around
+    // it. The parametrisation is kept as a fallback for hits with no recorded deposit.
+    double hcharge = hit->getEDep() * dd4hep::GeV;
+    double dEmean = (hcharge > 0.)
+                  ? hcharge / ((double)_numberOfSegments)
+                  : (dd4hep::keV * _energyLoss * trackLength) / ((double)_numberOfSegments);
     _ionisationPoints.resize(_numberOfSegments);
     streamlog_out( DEBUG6 ) <<  "Track path length: " << trackLength << ", calculated dEmean * N_segment = " << dEmean << " * " << _numberOfSegments << " = " << dEmean*_numberOfSegments << std::endl;
     _eSum = 0.0;
@@ -906,7 +914,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double geomStep = (sHi - sLo) / ((double)_numberOfSegments);
     _segmentDepth = geomStep * std::fabs(u[2]);
 
-    double hcharge = ( hit->getEDep() / dd4hep::GeV ); 	
     streamlog_out (DEBUG5) << "Number of ionization points: " << _numberOfSegments << ", G4 EDep = "  << hcharge << std::endl;
     for (int i = 0; i < _numberOfSegments; ++i)
     {
