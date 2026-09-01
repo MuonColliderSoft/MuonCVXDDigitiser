@@ -100,6 +100,10 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 2) <br>
  * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
  * (default parameter value : 0) <br>
+ * @param MSSliceThickness thickness (mm) of the slices the track is stepped through when
+ * applying multiple scattering; the sensor is divided into a whole number of slices no
+ * thicker than this <br>
+ * (default parameter value : 0.005) <br>
  * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
  * vertex barrel, reproducing the geometry-derived behaviour), 0 = off, 1 = on <br>
  * (default parameter value : -1) <br>
@@ -193,6 +197,7 @@ protected:
     int _electronicEffects;
     int _produceFullPattern;
     int _doMultipleScattering;
+    double _msSliceThickness;
     std::vector<int> _layerIDs;
 
     // time digitization overrides

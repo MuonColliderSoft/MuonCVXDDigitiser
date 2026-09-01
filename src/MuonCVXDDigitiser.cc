@@ -194,6 +194,10 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "Flag to enable multiple scattering of the track inside the sensor.",
                                _doMultipleScattering,
                                0);
+    registerProcessorParameter("MSSliceThickness",
+                               "Slice thickness (mm) used to step the track through the sensor when applying multiple scattering.",
+                               _msSliceThickness,
+                               0.005);
 
     registerProcessorParameter("TRise",
                                "Optional override for t_rise (ns). Negative means use default.",
@@ -792,10 +796,15 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         }
 
         double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
-        double num_slices = sensorT / 0.005; //for 5 micron slices in pixel sensor
-        double z_segment = sensorT / num_slices;
-        double z_traveled = 0;
-        while (z_traveled < sensorT){
+        // Step through the sensor in a whole number of slices no thicker than
+        // _msSliceThickness, so the steps cover exactly the sensor thickness. Accumulating a
+        // floating-point z against sensorT instead runs a whole extra slice: _layerThickness
+        // is a float, so 50 um / 5 um evaluates to 10.000000149 rather than 10. The small
+        // relative tolerance absorbs that while still rounding a genuine 10.4 up to 11.
+        double sliceT = (_msSliceThickness > 0.) ? _msSliceThickness : sensorT;
+        int n_slices = std::max(1, (int)std::ceil(sensorT / sliceT * (1. - 1e-6)));
+        double z_segment = sensorT / n_slices;
+        for (int islice = 0; islice < n_slices; ++islice){
 
             pathL_segment = z_segment / fabs(dir[2]); // path length for segment
 
@@ -824,8 +833,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             pos[0] += dir[0] * pathL_segment;
             pos[1] += dir[1] * pathL_segment;
             pos[2] += dir[2] * pathL_segment;
-
-            z_traveled += z_segment;
         }
         //find final exit point
         for (int i = 0; i < 2; ++i) {
