@@ -100,17 +100,17 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * @param ZSegmented flag to enable Z-segmentation for barrel layers <br>
  * (default parameter value : false) <br>
  * @param SigmaLandau override for Landau sigma <br>
- * (default parameter value : -1) <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
  * @param SigmaTimewalk override for timewalk sigma <br>
- * (default parameter value : -1) <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
  * @param SigmaJitter override for jitter sigma <br>
- * (default parameter value : -1) <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
  * @param SigmaTDC override for TDC sigma <br>
- * (default parameter value : -1) <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
  * @param SigmaClock override for clock sigma <br>
- * (default parameter value : -1) <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
  * @param TRise override for rise time <br>
- * (default parameter value : -1) <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
  * @param LayerIDs list of layer IDs to process <br>
  * (default parameter value : empty) <br>
  * <br>

@@ -193,27 +193,27 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                 0);
 
     registerProcessorParameter("TRise",
-                                "Optional override for t_rise (ns). -1 means use default.",
+                                "Optional override for t_rise (ns). Negative means use default.",
                                 _t_riseOverride,
                                 -1.0);
     registerProcessorParameter("SigmaLandau",
-                                "Optional override for sigma_landau (ns). -1 means use default.",
+                                "Optional override for sigma_landau (ns). Negative means use default.",
                                 _sigma_landauOverride,
                                 -1.0);
     registerProcessorParameter("SigmaTimewalk",
-                                "Optional override for sigma_timewalk (ns). -1 means use default.",
+                                "Optional override for sigma_timewalk (ns). Negative means use default.",
                                 _sigma_timewalkOverride,
                                 -1.0);
     registerProcessorParameter("SigmaJitter",
-                                "Optional override for sigma_jitter (ns). -1 means use default.",
+                                "Optional override for sigma_jitter (ns). Negative means use default.",
                                 _sigma_jitterOverride,
                                 -1.0);
     registerProcessorParameter("SigmaTDC",
-                                "Optional override for sigma_TDC (ns). -1 means use default.",
+                                "Optional override for sigma_TDC (ns). Negative means use default.",
                                 _sigma_TDCOverride,
                                 -1.0);
     registerProcessorParameter("SigmaClock",
-                                "Optional override for sigma_clock (ns). -1 means use default.",
+                                "Optional override for sigma_clock (ns). Negative means use default.",
                                 _sigma_clockOverride,
                                 -1.0);
     registerProcessorParameter("ZSegmented",
@@ -1126,23 +1126,23 @@ void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
     {
         // -- Realistic timing in planar sensors application default values: -- //
         SimTrackerHitImpl *hit = simTrkVec[i];
-        float t_riseDefault = (8.8*_layerThickness[_currentLayer]*1e3 + 152.1)*1e-3; //[ns]
-        float t_rise = (_t_riseOverride > -1.0) ? _t_riseOverride : t_riseDefault;
-        float sigma_landauDefault   = 0.03 * _layerThickness[_currentLayer]/0.05;  // [ns]from sensor thickness & charge deposition fluctuations - 30ps/50microns
-        float sigma_timewalkDefault = 0.1 * t_rise; //[ns] t_rise * 0.1
-        float sigma_jitterDefault   = (_electronicNoise*t_rise)/(80000 * _layerThickness[_currentLayer]);  // [ns] Q_noise/slope in charge over time 80e/micron = 80000e/mm
-        float sigma_TDCDefault      = 0.025/std::sqrt(12);  // time to digital converter using 25 ns for deltaT
-        float sigma_clockDefault    = 0.005;  // fixed by clock quality 5ps
+        double t_riseDefault = (8.8*_layerThickness[_currentLayer]*1e3 + 152.1)*1e-3; //[ns]
+        double t_rise = (_t_riseOverride >= 0.) ? _t_riseOverride : t_riseDefault;
+        double sigma_landauDefault   = 0.03 * _layerThickness[_currentLayer]/0.05;  // [ns]from sensor thickness & charge deposition fluctuations - 30ps/50microns
+        double sigma_timewalkDefault = 0.1 * t_rise; //[ns] t_rise * 0.1
+        double sigma_jitterDefault   = (_electronicNoise*t_rise)/(80000 * _layerThickness[_currentLayer]);  // [ns] Q_noise/slope in charge over time 80e/micron = 80000e/mm
+        double sigma_TDCDefault      = 0.025/std::sqrt(12);  // [ns] time to digital converter, 25 ps LSB
+        double sigma_clockDefault    = 0.005;  // [ns] fixed by clock quality, 5 ps
         
-        float sigma_landau = (_sigma_landauOverride > -1.0) ? _sigma_landauOverride : sigma_landauDefault;
-        float sigma_timewalk = (_sigma_timewalkOverride > -1.0) ? _sigma_timewalkOverride : sigma_timewalkDefault;
-        float sigma_jitter = (_sigma_jitterOverride > -1.0) ? _sigma_jitterOverride : sigma_jitterDefault;
-        float sigma_TDC = (_sigma_TDCOverride > -1.0) ? _sigma_TDCOverride : sigma_TDCDefault;
-        float sigma_clock = (_sigma_clockOverride > -1.0) ? _sigma_clockOverride : sigma_clockDefault;
+        double sigma_landau = (_sigma_landauOverride >= 0.) ? _sigma_landauOverride : sigma_landauDefault;
+        double sigma_timewalk = (_sigma_timewalkOverride >= 0.) ? _sigma_timewalkOverride : sigma_timewalkDefault;
+        double sigma_jitter = (_sigma_jitterOverride >= 0.) ? _sigma_jitterOverride : sigma_jitterDefault;
+        double sigma_TDC = (_sigma_TDCOverride >= 0.) ? _sigma_TDCOverride : sigma_TDCDefault;
+        double sigma_clock = (_sigma_clockOverride >= 0.) ? _sigma_clockOverride : sigma_clockDefault;
         
-        float sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
+        double sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
         streamlog_out (DEBUG6) << "sigma_total: " << sigma_total << std::endl; 
-        float delta = RandGauss::shoot(0., sigma_total);
+        double delta = RandGauss::shoot(0., sigma_total);
 
         hit->setTime(hit->getTime() + delta);
         streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2] 
