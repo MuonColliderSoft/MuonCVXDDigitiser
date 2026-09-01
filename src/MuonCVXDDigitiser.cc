@@ -859,13 +859,27 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         _currentExitPoint[i] = exit[i];
     }
     streamlog_out( DEBUG5 ) << "local position: " << _currentLocalPosition[0] << ", " << _currentLocalPosition[1] << ", " << _currentLocalPosition[2] << std::endl;
-    double tanx = dir[0] / dir[2];
-    double tany = dir[1] / dir[2];  
-    
-    // trackLength is in mm -> limit length at 1cm
-    double trackLength = std::min(_maxTrkLen,
-         _layerThickness[_currentLayer] * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
-  
+    // Local unit direction of travel through the sensor.
+    double dirMag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+    double u[3] = { dir[0]/dirMag, dir[1]/dirMag, dir[2]/dirMag };
+    const double halfT = _layerHalfThickness[_currentLayer];
+
+    // Straight-line crossing of the full sensor along that direction.
+    double crossingLength = (std::fabs(u[2]) > 1e-12)
+                          ? _layerThickness[_currentLayer] / std::fabs(u[2])
+                          : _maxTrkLen;
+
+    // True path length in the sensitive volume as recorded by Geant4: it already contains the
+    // scattering and curvature inside the sensor, and it is shorter than a full crossing for a
+    // particle that stopped, started or clipped a corner. Fall back to the straight-line
+    // crossing when the producer did not fill it.
+    double pathLength = hit->getPathLength();
+    if (!(pathLength > 0.)) pathLength = crossingLength;
+
+    // trackLength is the physical distance travelled: it sets the segmentation and the
+    // per-segment path length handed to the fluctuation model. Limited at 1cm.
+    double trackLength = std::min(_maxTrkLen, pathLength);
+
     _numberOfSegments = ceil(trackLength / _segmentLength );
     double dEmean = (dd4hep::keV * _energyLoss * trackLength) / ((double)_numberOfSegments);
     _ionisationPoints.resize(_numberOfSegments);
@@ -873,16 +887,33 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     _eSum = 0.0;
     // TODO _segmentLength may be different from segmentLength, is it ok?
     double segmentLength = trackLength / ((double)_numberOfSegments);
-    _segmentDepth = _layerThickness[_currentLayer] / ((double)_numberOfSegments);
-    double z = -_layerHalfThickness[_currentLayer] - 0.5 * _segmentDepth;
-    
+
+    // The trail is a straight segment centred on the hit position and running along u. Its
+    // extent is capped at the full-thickness crossing and then clipped to the slab: a curling
+    // track reports an arc far longer than any straight segment through the sensor, and
+    // ProduceSignalPoints() computes the drift distance as (halfThickness - z), which goes
+    // negative if a point escapes.
+    double sLo = -0.5 * std::min(trackLength, crossingLength);
+    double sHi = -sLo;
+    if (std::fabs(u[2]) > 1e-12) {
+        double sA = (-halfT - origPos[2]) / u[2];
+        double sB = ( halfT - origPos[2]) / u[2];
+        if (sA > sB) std::swap(sA, sB);
+        sLo = std::max(sLo, sA);
+        sHi = std::min(sHi, sB);
+    }
+    if (!(sHi > sLo)) { sLo = 0.; sHi = 0.; }  // degenerate, put everything at the hit
+    double geomStep = (sHi - sLo) / ((double)_numberOfSegments);
+    _segmentDepth = geomStep * std::fabs(u[2]);
+
     double hcharge = ( hit->getEDep() / dd4hep::GeV ); 	
     streamlog_out (DEBUG5) << "Number of ionization points: " << _numberOfSegments << ", G4 EDep = "  << hcharge << std::endl;
     for (int i = 0; i < _numberOfSegments; ++i)
     {
-        z += _segmentDepth;
-        double x = origPos[0] + tanx * (z - origPos[2]);
-        double y = origPos[1] + tany * (z - origPos[2]);
+        double sPath = sLo + (i + 0.5) * geomStep;
+        double x = origPos[0] + sPath * u[0];
+        double y = origPos[1] + sPath * u[1];
+        double z = origPos[2] + sPath * u[2];
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
         // length in mm, meanLoss eloss in MeV.
         double de = _fluctuate->SampleFluctuations(double(_currentParticleMomentum / dd4hep::MeV),
