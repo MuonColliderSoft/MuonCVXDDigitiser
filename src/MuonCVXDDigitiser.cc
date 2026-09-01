@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cmath>
 #include <random>
-#include <array>
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
 #include <UTIL/CellIDEncoder.h>
@@ -188,38 +187,38 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _layerIDs,
                                {});
     registerProcessorParameter("DoMultipleScattering",
-                                "Flag to enable multiple scattering of the track inside the sensor.",
-                                _doMultipleScattering,
-                                0);
+                               "Flag to enable multiple scattering of the track inside the sensor.",
+                               _doMultipleScattering,
+                               0);
 
     registerProcessorParameter("TRise",
-                                "Optional override for t_rise (ns). Negative means use default.",
-                                _t_riseOverride,
-                                -1.0);
+                               "Optional override for t_rise (ns). Negative means use default.",
+                               _t_riseOverride,
+                               -1.0);
     registerProcessorParameter("SigmaLandau",
-                                "Optional override for sigma_landau (ns). Negative means use default.",
-                                _sigma_landauOverride,
-                                -1.0);
+                               "Optional override for sigma_landau (ns). Negative means use default.",
+                               _sigma_landauOverride,
+                               -1.0);
     registerProcessorParameter("SigmaTimewalk",
-                                "Optional override for sigma_timewalk (ns). Negative means use default.",
-                                _sigma_timewalkOverride,
-                                -1.0);
+                               "Optional override for sigma_timewalk (ns). Negative means use default.",
+                               _sigma_timewalkOverride,
+                               -1.0);
     registerProcessorParameter("SigmaJitter",
-                                "Optional override for sigma_jitter (ns). Negative means use default.",
-                                _sigma_jitterOverride,
-                                -1.0);
+                               "Optional override for sigma_jitter (ns). Negative means use default.",
+                               _sigma_jitterOverride,
+                               -1.0);
     registerProcessorParameter("SigmaTDC",
-                                "Optional override for sigma_TDC (ns). Negative means use default.",
-                                _sigma_TDCOverride,
-                                -1.0);
+                               "Optional override for sigma_TDC (ns). Negative means use default.",
+                               _sigma_TDCOverride,
+                               -1.0);
     registerProcessorParameter("SigmaClock",
-                                "Optional override for sigma_clock (ns). Negative means use default.",
-                                _sigma_clockOverride,
-                                -1.0);
+                               "Optional override for sigma_clock (ns). Negative means use default.",
+                               _sigma_clockOverride,
+                               -1.0);
     registerProcessorParameter("ZSegmented",
-                                "Enable sensor segmentation along z-axis for barrel layers only.",
-                                _zSegmented,
-                                false);
+                               "Enable sensor segmentation along z-axis for barrel layers only.",
+                               _zSegmented,
+                               false);
 }
 void MuonCVXDDigitiser::init()
 { 
@@ -352,11 +351,11 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  // Note: petal-like structure but current geometry only defines a single sensitive element for the whole disk afaics.
 	  // The structure is defined in /opt/ilcsoft/muonc/DD4hep/v01-25-01/DDRec/include/DDRec/DetectorData.h
 
-      _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
+	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
-	
-      _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
-	
+
+	  _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
+
 	  _layerPetalInnerWidth[curr_layer] = z_layout.widthInnerSensitive * dd4hep::cm / dd4hep::mm ;
       _layerPetalOuterWidth[curr_layer] = z_layout.widthOuterSensitive * dd4hep::cm / dd4hep::mm ;
       _petalsInLayer[curr_layer] = z_layout.petalNumber;
@@ -371,15 +370,6 @@ void MuonCVXDDigitiser::LoadGeometry()
 	}
     }
 
-    // temp fix for issue: z_layout.lengthSensor = 0 for the inner tracker barrel
-    // manually hard code values for ladderlength
-    /* if (_layerLadderLength[0] == 0 && isInnerTracker && isBarrel){
-        _layerLadderLength = {963.2,963.2,1384.6};
-    }
-    if (_layerLadderLength[0] == 0 && $$ isOuterTracker && isBarrel){
-        _layerLadderLength = {1264.2*2,1264.2*2,1264.2*2};
-    } */
-
     PrintGeometryInfo();
 
     // Bins for charge discretization
@@ -389,7 +379,7 @@ void MuonCVXDDigitiser::LoadGeometry()
     // -- 100 micron sensors in VXB: --//
     if (_ChargeDigitizeNumBits == 4 && isVertex && _layerThickness[_currentLayer]==0.075) _DigitizedBins = {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}; //75 microns
     // -- 100 micron sensors in VXB: --//
-    if (_ChargeDigitizeNumBits == 4 && isVertex && _layerThickness[_currentLayer]==0.1) _DigitizedBins = {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}; //100 microns    
+    if (_ChargeDigitizeNumBits == 4 && isVertex && _layerThickness[_currentLayer]==0.1) _DigitizedBins = {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}; //100 microns
     // -- 200 micron sensors in VXB: --//
     if (_ChargeDigitizeNumBits == 4 && isVertex && _layerThickness[_currentLayer]==0.2) _DigitizedBins = {500, 720, 1037, 1494, 2152, 3099, 4463, 6428, 9258, 13334, 19205, 27660, 39838, 57378, 82640, 119024}; //200 microns
     // -- 400 micron sensors in VXB: --//
@@ -451,7 +441,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
         }
         int nSimHits = STHcol->getNumberOfElements();
         streamlog_out( DEBUG9 ) << "Processing collection " << _colName  << " with " <<  nSimHits  << " hits ... " << std::endl ;
-        
+
         for (int i=0; i < nSimHits; ++i)
         {
             SimTrackerHit * simTrkHit = 
@@ -491,7 +481,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
             streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
             streamlog_out (DEBUG6) << "- Quality = " << simTrkHit->getQuality() << std::endl;
-            
+
             ProduceIonisationPoints( simTrkHit );       
             if (_currentLayer == -1)
               continue;
@@ -733,19 +723,19 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         entry[i] = origPos[i] + dir[i] * (entry[2] - origPos[2]) / dir[2];
         exit[i]= origPos[i] + dir[i] * (exit[2] - origPos[2]) / dir[2];
     }
-    
+
     if(_doMultipleScattering){
         streamlog_out( DEBUG6 ) << "Applying multiple scattering formula" << std::endl;
         //**************************************************************************
         //Multiple scattering implementation based on PDG formula (https://pdg.lbl.gov/2020/reviews/rpp2020-rev-passage-particles-matter.pdf)
-        //************************************************************************** 
+        //**************************************************************************
             double p = std::sqrt(pow(hit->getMomentum()[0],2) + pow(hit->getMomentum()[1],2) + pow(hit->getMomentum()[2],2)); //[GeV/c]
             double c = 1;
             double beta = p / std::sqrt(p*p + _currentParticleMass*_currentParticleMass);
-            
+
             double x_0 = 93.7; // [mm] -> radiation length in silicon
             double sensorT = _layerThickness[_currentLayer]; // [mm] -> sensor thickness
-            double q_charge = 1; 
+            double q_charge = 1;
 
             static thread_local std::mt19937_64 rng{std::random_device{}()};
             static thread_local std::normal_distribution<> gauss(0.0, 1.0);
@@ -757,7 +747,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         dir[2] /= mag;
         for (int i = 0; i < 2; ++i) {
             entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
-        } 
+        }
 
         double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
         double num_slices = sensorT / 0.005; //for 5 micron slices in pixel sensor
@@ -800,7 +790,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         }
     }
     //end of multiple scattering implementation
-    
+
     for (int i = 0; i < 3; ++i) {
         _currentLocalPosition[i] = origPos[i];
         _currentEntryPoint[i] = entry[i];
@@ -1133,15 +1123,15 @@ void MuonCVXDDigitiser::TimeSmearer(SimTrackerHitImplVec &simTrkVec)
         double sigma_jitterDefault   = (_electronicNoise*t_rise)/(80000 * _layerThickness[_currentLayer]);  // [ns] Q_noise/slope in charge over time 80e/micron = 80000e/mm
         double sigma_TDCDefault      = 0.025/std::sqrt(12);  // [ns] time to digital converter, 25 ps LSB
         double sigma_clockDefault    = 0.005;  // [ns] fixed by clock quality, 5 ps
-        
+
         double sigma_landau = (_sigma_landauOverride >= 0.) ? _sigma_landauOverride : sigma_landauDefault;
         double sigma_timewalk = (_sigma_timewalkOverride >= 0.) ? _sigma_timewalkOverride : sigma_timewalkDefault;
         double sigma_jitter = (_sigma_jitterOverride >= 0.) ? _sigma_jitterOverride : sigma_jitterDefault;
         double sigma_TDC = (_sigma_TDCOverride >= 0.) ? _sigma_TDCOverride : sigma_TDCDefault;
         double sigma_clock = (_sigma_clockOverride >= 0.) ? _sigma_clockOverride : sigma_clockDefault;
-        
+
         double sigma_total = std::sqrt(sigma_landau*sigma_landau + sigma_timewalk*sigma_timewalk + sigma_jitter*sigma_jitter + sigma_TDC*sigma_TDC + sigma_clock*sigma_clock);
-        streamlog_out (DEBUG6) << "sigma_total: " << sigma_total << std::endl; 
+        streamlog_out (DEBUG6) << "sigma_total: " << sigma_total << std::endl;
         double delta = RandGauss::shoot(0., sigma_total);
 
         hit->setTime(hit->getTime() + delta);

@@ -191,19 +191,19 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
                                (float)0.1);
 
     registerProcessorParameter("SensorType",
-                                "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)",
-                                sensor_type,
-                                int(1));
+                               "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)",
+                               sensor_type,
+                               int(1));
 
     registerProcessorParameter("ZSegmented",
-                                "Enable sensor segmentation along z-axis for barrel layers only.",
-                                _zSegmented,
-                                false);
+                               "Enable sensor segmentation along z-axis for barrel layers only.",
+                               _zSegmented,
+                               false);
 
     registerProcessorParameter("IsBarrel",
-                                "Sub-detector is a barrel (as opposed to an endcap).",
-                                _isBarrel,
-                                true);
+                               "Sub-detector is a barrel (as opposed to an endcap).",
+                               _isBarrel,
+                               true);
 
     registerProcessorParameter("StatisticsFilename",
                                "File name for statistics (None for disabling the feature)",

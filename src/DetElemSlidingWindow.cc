@@ -235,14 +235,14 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     // Store local position in mm
     pos[0] = lv[0] / dd4hep::mm;
     pos[1] = lv[1] / dd4hep::mm;
-if (_isBarrel && _zSegmented) {
-    // See MuonCVXDDigitiser::processEvent
-    int segment_id = cell_decoder(hit)["sensor"];
+    if (_isBarrel && _zSegmented) {
+        // See MuonCVXDDigitiser::processEvent
+        int segment_id = cell_decoder(hit)["sensor"];
 
-    float s_offset = _sensor.GetSensorCols() * _sensor.GetPixelSizeY() * (float(segment_id) + 0.5);
-    s_offset -= _sensor.GetHalfLength();
-    pos[1] += s_offset;
-}
+        float s_offset = _sensor.GetSensorCols() * _sensor.GetPixelSizeY() * (float(segment_id) + 0.5);
+        s_offset -= _sensor.GetHalfLength();
+        pos[1] += s_offset;
+    }
 
     // Add also z ccordinate
     Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);

@@ -197,7 +197,7 @@ protected:
     double _sigma_jitterOverride;
     double _sigma_TDCOverride;
     double _sigma_clockOverride;
-  
+
     // charge discretization
     std::vector<double> _DigitizedBins{};
     
