@@ -3,7 +3,6 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
-#include <random>
 #include <map>
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
@@ -774,9 +773,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             double sensorT = _layerThickness[_currentLayer]; // [mm] -> sensor thickness
             double q_charge = 1;
 
-            static thread_local std::mt19937_64 rng{std::random_device{}()};
-            static thread_local std::normal_distribution<> gauss(0.0, 1.0);
-
         // normalize direction
         double mag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
         dir[0] /= mag;
@@ -799,8 +795,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             theta_0 = (0.0136/(beta*p))*q_charge*std::sqrt(pathL_segment/x_0)
             *(1+0.038*std::log(pathL_segment*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
 
-            theta_plane_x = gauss(rng)*theta_0;
-            theta_plane_y = gauss(rng)*theta_0;
+            theta_plane_x = RandGauss::shoot(0., theta_0);
+            theta_plane_y = RandGauss::shoot(0., theta_0);
             theta_out_x = theta_plane_x + std::atan2(dir[0],dir[2]);
             theta_out_y = theta_plane_y + std::atan2(dir[1],dir[2]);
 
