@@ -186,6 +186,11 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _maxTrkLen,
                                10.0);
     
+    registerProcessorParameter("ResimulateIonisation",
+                               "Source of the ionisation trail: 0 = take the path length and the deposited energy from the Geant4 hit, 1 = re-simulate them from the local direction and the EnergyLoss parametrisation.",
+                               _resimulateIonisation,
+                               0);
+
     registerProcessorParameter("LayerIDs",
                                "ID of layers of subdetector",
                                _layerIDs,
@@ -859,22 +864,44 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         _currentExitPoint[i] = exit[i];
     }
     streamlog_out( DEBUG5 ) << "local position: " << _currentLocalPosition[0] << ", " << _currentLocalPosition[1] << ", " << _currentLocalPosition[2] << std::endl;
-    // Local unit direction of travel through the sensor.
+    // Local unit direction of travel through the sensor. After the multiple-scattering loop
+    // above this is the deflected direction, so the re-simulation chain sees its own kinematics.
     double dirMag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
     double u[3] = { dir[0]/dirMag, dir[1]/dirMag, dir[2]/dirMag };
     const double halfT = _layerHalfThickness[_currentLayer];
+    const bool crossesPlane = std::fabs(u[2]) > 1e-12;
 
     // Straight-line crossing of the full sensor along that direction.
-    double crossingLength = (std::fabs(u[2]) > 1e-12)
+    double crossingLength = crossesPlane
                           ? _layerThickness[_currentLayer] / std::fabs(u[2])
                           : _maxTrkLen;
 
-    // True path length in the sensitive volume as recorded by Geant4: it already contains the
-    // scattering and curvature inside the sensor, and it is shorter than a full crossing for a
-    // particle that stopped, started or clipped a corner. Fall back to the straight-line
-    // crossing when the producer did not fill it.
-    double pathLength = hit->getPathLength();
-    if (!(pathLength > 0.)) pathLength = crossingLength;
+    // Two mutually exclusive sources for the trail, selected by _resimulateIonisation:
+    //  0 (Geant4, default): the trail length is the path length Geant4 recorded in the
+    //    sensitive volume and the total deposit is the Geant4 EDep.
+    //  1 (re-simulation): the trail is the full crossing of the sensor along the local
+    //    direction and the energy comes from the _energyLoss dE/dx parametrisation. Nothing
+    //    but the direction is taken from Geant4, so the chain can be tuned on its own.
+    const bool resimulate = (_resimulateIonisation != 0);
+
+    double pathLength;
+    if (resimulate)
+    {
+        pathLength = crossingLength;
+    }
+    else
+    {
+        // True path length in the sensitive volume as recorded by Geant4: it already contains
+        // the scattering and curvature inside the sensor, and it is shorter than a full
+        // crossing for a particle that stopped, started or clipped a corner. Fall back to the
+        // straight-line crossing when the producer did not fill it.
+        pathLength = hit->getPathLength();
+        if (!(pathLength > 0.))
+        {
+            pathLength = crossingLength;
+            streamlog_out( DEBUG5 ) << "Hit carries no path length, falling back to the sensor crossing" << std::endl;
+        }
+    }
 
     // trackLength is the physical distance travelled: it sets the segmentation and the
     // per-segment path length handed to the fluctuation model. Limited at 1cm.
@@ -882,12 +909,14 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 
     _numberOfSegments = ceil(trackLength / _segmentLength );
 
-    // Anchor the mean energy per segment to the energy Geant4 actually deposited, rather than
-    // to the _energyLoss * trackLength parametrisation. The deposit is the truth for the total;
-    // SampleFluctuations() below still supplies the segment-to-segment Landau structure around
-    // it. The parametrisation is kept as a fallback for hits with no recorded deposit.
+    // Energy Geant4 actually deposited in the sensor. In G4 mode it is the truth for the total
+    // and anchors both dEmean and the 1/n^2 padding below; SampleFluctuations() still supplies
+    // the segment-to-segment Landau structure around it. In re-simulation mode the total is
+    // left to the parametrisation and the padding is skipped, so the hit stays independent of
+    // the Geant4 deposit. The parametrisation is also the fallback for hits with no deposit.
     double hcharge = hit->getEDep() * dd4hep::GeV;
-    double dEmean = (hcharge > 0.)
+    const bool anchorToG4 = !resimulate && (hcharge > 0.);
+    double dEmean = anchorToG4
                   ? hcharge / ((double)_numberOfSegments)
                   : (dd4hep::keV * _energyLoss * trackLength) / ((double)_numberOfSegments);
     _ionisationPoints.resize(_numberOfSegments);
@@ -896,25 +925,48 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     // TODO _segmentLength may be different from segmentLength, is it ok?
     double segmentLength = trackLength / ((double)_numberOfSegments);
 
-    // The trail is a straight segment centred on the hit position and running along u. Its
-    // extent is capped at the full-thickness crossing and then clipped to the slab: a curling
-    // track reports an arc far longer than any straight segment through the sensor, and
-    // ProduceSignalPoints() computes the drift distance as (halfThickness - z), which goes
-    // negative if a point escapes.
-    double sLo = -0.5 * std::min(trackLength, crossingLength);
-    double sHi = -sLo;
-    if (std::fabs(u[2]) > 1e-12) {
-        double sA = (-halfT - origPos[2]) / u[2];
-        double sB = ( halfT - origPos[2]) / u[2];
-        if (sA > sB) std::swap(sA, sB);
-        sLo = std::max(sLo, sA);
-        sHi = std::min(sHi, sB);
+    // Place the trail as a straight segment along u, parametrised by the path coordinate s
+    // measured from the hit position.
+    double sLo, sHi;
+    if (resimulate)
+    {
+        if (crossesPlane)
+        {
+            // The trail spans the whole sensor thickness, entry face to exit face.
+            sLo = (-halfT - origPos[2]) / u[2];
+            sHi = ( halfT - origPos[2]) / u[2];
+            if (sLo > sHi) std::swap(sLo, sHi);
+        }
+        else
+        {
+            // Track running in the sensor plane: no crossing to span, keep the trail centred.
+            sLo = -0.5 * trackLength;
+            sHi = -sLo;
+        }
+    }
+    else
+    {
+        // Centred on the hit position, its extent capped at the full-thickness crossing and
+        // then clipped to the slab: a curling track reports an arc far longer than any straight
+        // segment through the sensor, and ProduceSignalPoints() computes the drift distance as
+        // (halfThickness - z), which goes negative if a point escapes.
+        sLo = -0.5 * std::min(trackLength, crossingLength);
+        sHi = -sLo;
+        if (crossesPlane) {
+            double sA = (-halfT - origPos[2]) / u[2];
+            double sB = ( halfT - origPos[2]) / u[2];
+            if (sA > sB) std::swap(sA, sB);
+            sLo = std::max(sLo, sA);
+            sHi = std::min(sHi, sB);
+        }
     }
     if (!(sHi > sLo)) { sLo = 0.; sHi = 0.; }  // degenerate, put everything at the hit
     double geomStep = (sHi - sLo) / ((double)_numberOfSegments);
     _segmentDepth = geomStep * std::fabs(u[2]);
 
-    streamlog_out (DEBUG5) << "Number of ionization points: " << _numberOfSegments << ", G4 EDep = "  << hcharge << std::endl;
+    streamlog_out (DEBUG5) << "Number of ionization points: " << _numberOfSegments
+        << ", trail from " << (resimulate ? "re-simulation" : "Geant4")
+        << ", G4 EDep = "  << hcharge << std::endl;
     for (int i = 0; i < _numberOfSegments; ++i)
     {
         double sPath = sLo + (i + 0.5) * geomStep;
@@ -938,16 +990,21 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         streamlog_out (DEBUG2) << " " << i << ": z=" << z << ", eloss = " << de << "(total so far: " << _eSum << "), x=" << x << ", y=" << y << std::endl;
     }
    
-    const double thr = _deltaEne/_electronsPerKeV * dd4hep::keV;
-    while ( hcharge > _eSum + thr ) {
-      // Add additional charge sampled from an 1 / n^2 distribution.
-      // Adjust charge to match expectations
-      const double       q = randomTail( thr, hcharge - _eSum );
-      const unsigned int h = floor(RandFlat::shoot(0.0, (double)_numberOfSegments ));
-      _ionisationPoints[h].eloss += q;
-      _eSum += q;
+    // Top the sampled total up to the Geant4 deposit. Only meaningful when the hit is anchored
+    // to Geant4: in re-simulation mode the total is whatever the parametrisation sampled.
+    if (anchorToG4)
+    {
+      const double thr = _deltaEne/_electronsPerKeV * dd4hep::keV;
+      while ( hcharge > _eSum + thr ) {
+        // Add additional charge sampled from an 1 / n^2 distribution.
+        // Adjust charge to match expectations
+        const double       q = randomTail( thr, hcharge - _eSum );
+        const unsigned int h = floor(RandFlat::shoot(0.0, (double)_numberOfSegments ));
+        _ionisationPoints[h].eloss += q;
+        _eSum += q;
+      }
+      streamlog_out (DEBUG5) << "Padding each segment charge (1/n^2 pdf) until total below " << _deltaEne << "e- threshold. New total energy: " << _eSum << std::endl;
     }
-    streamlog_out (DEBUG5) << "Padding each segment charge (1/n^2 pdf) until total below " << _deltaEne << "e- threshold. New total energy: " << _eSum << std::endl;
     streamlog_out (DEBUG3) << "List of ionization points:" << std::endl;
     for (int i =0; i < _numberOfSegments; ++i) {
         streamlog_out (DEBUG3) << "- " << i << ": E=" << _ionisationPoints[i].eloss 

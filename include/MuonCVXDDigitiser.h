@@ -196,6 +196,7 @@ protected:
     int _timeSmearingModel;
     int _electronicEffects;
     int _produceFullPattern;
+    int _resimulateIonisation;
     int _doMultipleScattering;
     double _msSliceThickness;
     std::vector<int> _layerIDs;
