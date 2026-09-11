@@ -95,6 +95,32 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 100) <br>
   * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
  * (default parameter value : 10) <br> 
+ * @param TimeSmearingModel time smearing model: 0 = none, 1 = constant sigma taken from
+ * TimeSmearingSigma, 2 = realistic resolution derived from the sensor thickness <br>
+ * (default parameter value : 2) <br>
+ * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
+ * (default parameter value : 0) <br>
+ * @param MSSliceThickness thickness (mm) of the slices the track is stepped through when
+ * applying multiple scattering; the sensor is divided into a whole number of slices no
+ * thicker than this <br>
+ * (default parameter value : 0.005) <br>
+ * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
+ * vertex barrel, reproducing the geometry-derived behaviour), 0 = off, 1 = on <br>
+ * (default parameter value : -1) <br>
+ * @param SigmaLandau override for Landau sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaTimewalk override for timewalk sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaJitter override for jitter sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaTDC override for TDC sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaClock override for clock sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param TRise override for rise time <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param LayerIDs list of layer IDs to process <br>
+ * (default parameter value : empty) <br>
  * <br>
  */
 class MuonCVXDDigitiser : public Processor
@@ -104,6 +130,7 @@ public:
     virtual Processor*  newProcessor() { return new MuonCVXDDigitiser ; }
 
     MuonCVXDDigitiser();
+    ~MuonCVXDDigitiser();
 
     /** Called at the begin of the job before anything is read.
     * Use to initialize the processor, e.g. book histograms.
@@ -131,10 +158,10 @@ protected:
     int _debug;
     int _totEntries;
     std::string _subDetName;
-    bool isBarrel;
-    bool isVertex;
-    bool isInnerTracker;
-    bool isOuterTracker;
+    bool isBarrel{false};
+    bool isVertex{false};
+    bool isInnerTracker{false};
+    bool isOuterTracker{false};
 
     // input/output collections
     std::string _colName;
@@ -166,21 +193,30 @@ protected:
     double _timeMax;
     int _TimeDigitizeBinning;
     double _timeSmearingSigma;
+    int _timeSmearingModel;
     int _electronicEffects;
     int _produceFullPattern;
+    int _resimulateIonisation;
+    int _doMultipleScattering;
+    double _msSliceThickness;
     std::vector<int> _layerIDs;
-  
-    MyG4UniversalFluctuationForSi *_fluctuate;
+
+    // time digitization overrides
+    double _t_riseOverride;
+    double _sigma_landauOverride;
+    double _sigma_timewalkOverride;
+    double _sigma_jitterOverride;
+    double _sigma_TDCOverride;
+    double _sigma_clockOverride;
 
     // charge discretization
-    std::vector<double> _DigitizedBins{};
+    std::vector<std::vector<double>> _DigitizedBins{};  // one bin table per layer
     
     // geometry
     int _numberOfLayers;
     std::vector<int>   _laddersInLayer{};
-#ifdef ZSEGMENTED
+    int _zSegmented;
     std::vector<int>   _sensorsPerLadder{};
-#endif
     std::vector<float> _layerRadius{};
     std::vector<float> _layerThickness{};
     std::vector<float> _layerHalfThickness{};
@@ -211,6 +247,7 @@ protected:
     double _currentExitPoint[3];
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
+    MyG4UniversalFluctuationForSi *_fluctuate;
 
     /* Charge digitization helpers */
     void ProduceIonisationPoints(SimTrackerHit *hit);
