@@ -2,12 +2,19 @@
 # Physics and helper code, independent of the Gaudi algorithms
 ########################################################
 
-# Sources are added here as they are ported away from Marlin/LCIO
 set(core_sources
+  src/AbstractSensor.cc
+  src/DetElemSlidingWindow.cc
+  src/FindUnionAlgorithm.cc
   src/G4UniversalFluctuation.cc
+  src/HitTemporalIndexes.cc
+  src/HKBaseSensor.cc
   src/LayerGeometry.cc
   src/MyG4UniversalFluctuationForSi.cc
+  src/PixelDigiMatrix.cc
+  src/ShapeProcessingSensor.cc
   src/TrackerCellID.cc
+  src/TrivialSensor.cc
 )
 
 add_library(MuonCVXDDigitiserCore SHARED ${core_sources})
@@ -17,6 +24,7 @@ target_include_directories(MuonCVXDDigitiserCore PUBLIC
 )
 
 target_link_libraries(MuonCVXDDigitiserCore PUBLIC
+  Gaudi::GaudiKernel
   EDM4HEP::edm4hep
   DD4hep::DDCore
   DD4hep::DDRec
@@ -37,6 +45,7 @@ install(TARGETS MuonCVXDDigitiserCore
 gaudi_add_module(MuonCVXDDigitiserPlugins
   SOURCES
     components/MuonCVXDDigitiser.cpp
+    components/MuonCVXDRealDigitiser.cpp
   LINK
     MuonCVXDDigitiserCore
     Gaudi::GaudiKernel
@@ -45,4 +54,5 @@ gaudi_add_module(MuonCVXDDigitiserPlugins
     EDM4HEP::edm4hep
     DD4hep::DDRec
     GSL::gsl
+    ROOT::Hist
 )

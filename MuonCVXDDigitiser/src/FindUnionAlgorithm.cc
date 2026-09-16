@@ -10,7 +10,7 @@ FindUnionAlgorithm::FindUnionAlgorithm(int n_row, int n_col) :
 
 void FindUnionAlgorithm::init()
 {
-    for (size_t k = 0; k < data.size(); k++) data[k] = k;
+    for (size_t k = 0; k < data.size(); k++) data[k] = static_cast<int>(k);
     c_table.clear();
 }
 
@@ -39,7 +39,7 @@ void FindUnionAlgorithm::close()
         }
         else if (data[k] >= 0)
         {
-            ClusterOfPixel p_list { k };
+            ClusterOfPixel p_list { static_cast<LinearPosition>(k) };
             c_table.emplace(data[k], p_list);
         }
     }

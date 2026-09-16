@@ -1,19 +1,19 @@
 #ifndef AbstractSensor_h
 #define AbstractSensor_h 1
 
+#include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include <unordered_set>
-#include <UTIL/BitField64.h>
-#include <UTIL/LCTrackerConf.h>
-#include <EVENT/SimTrackerHit.h>
+
+#include "GaudiKernel/MsgStream.h"
+#include "edm4hep/SimTrackerHit.h"
+
+#include "TrackerCellID.h"
 
 using std::string;
 using std::vector;
-using UTIL::BitField64;
-using lcio::LCTrackerCellID;
-using EVENT::SimTrackerHit;
 
 enum class PixelStatus : char {
     on,
@@ -37,7 +37,9 @@ struct PixelData
     PixelStatus status;
 };
 
-using SimHitSet = std::unordered_set<SimTrackerHit*>;
+/// SimTrackerHits contributing to a cluster, keyed on their index in the input collection
+/// so that the iteration order does not depend on memory addresses
+using SimHitSet = std::map<int, edm4hep::SimTrackerHit>;
 
 struct SegmentDigiHit
 {
@@ -45,7 +47,7 @@ struct SegmentDigiHit
     float y;
     float charge;
     float time;
-    int cellID0;
+    std::uint64_t cellID;
     int size;
     SimHitSet sim_hits;
 };
@@ -68,7 +70,7 @@ using LinearPosition = int;
 class GridPosition
 {
 public:
-    GridPosition(int rows, int cols) : b_size(cols) {}
+    GridPosition(int /*rows*/, int cols) : b_size(cols) {}
     virtual ~GridPosition() {}
     LinearPosition operator()(int row, int col) { return row * b_size + col; }
     LinearPosition operator()(GridCoordinate gc) { return gc.row * b_size + gc.col;}
@@ -80,7 +82,7 @@ private:
     int b_size;
 };
 
-using SimHitTable = std::unordered_multimap<LinearPosition, SimTrackerHit*>;
+using SimHitTable = std::unordered_multimap<LinearPosition, edm4hep::SimTrackerHit>;
 
 /**
  * @class AbstractSensor
@@ -101,11 +103,12 @@ public:
                     float thickness,
                     double pixelSizeX,
                     double pixelSizeY,
-                    string enc_str,
-                    int barrel_id,
+                    const TrackerCellID& cellIDCoder,
+                    int system_id,
                     double thr,
                     float starttime,
-                    float t_step);
+                    float t_step,
+                    MsgStream& log);
 
     virtual ~AbstractSensor();
 
@@ -132,13 +135,13 @@ public:
     virtual double PixelRowToX(int ix);
     virtual double PixelColToY(int iy);
 
-    virtual inline string GetCellIDFormatStr() { return cellFmtStr; }
+    virtual inline const TrackerCellID& GetCellIDCoder() { return _cellIDCoder; }
 
     virtual inline MatrixStatus GetStatus() { return status; }
 
     virtual void InitHitRegister();
 
-    virtual void RegisterHit(int x, int y, SimTrackerHit* hit);
+    virtual void RegisterHit(int x, int y, const edm4hep::SimTrackerHit& hit);
 
     virtual void Reset() = 0;
 
@@ -165,12 +168,13 @@ protected:
 
     virtual PixelData getPixel(int seg_x, int seg_y, int pos_x, int pos_y);
     virtual bool checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
-    virtual BitField64 getBFEncoder();
+    /// Cell ID of the ladder, with the sensor field still to be set
+    virtual std::uint64_t getLadderCellID();
     virtual void fillInHitRelation(SimHitSet& sset, LinearPosition pos);
 
     virtual bool check(int x, int y);
 
-    int _barrel_id;
+    int _system_id;
     int _layer;
     int _ladder;
     float _thickness;
@@ -184,7 +188,7 @@ protected:
     int s_colums;
     int x_segnum;
     int y_segnum;
-    string cellFmtStr;
+    const TrackerCellID& _cellIDCoder;
     double _thr_level;
     float init_time;
     float clock_step;
@@ -192,6 +196,7 @@ protected:
     GridPosition s_locate;
     MatrixStatus status;
     bool reset_simtable_at_once;
+    MsgStream& _log;
 
 private:
     SimHitTable simhit_table;

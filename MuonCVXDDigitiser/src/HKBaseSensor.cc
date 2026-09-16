@@ -1,7 +1,5 @@
 #include "HKBaseSensor.h"
 
-#include "streamlog/streamlog.h"
-
 #include <math.h>
 #include <algorithm>
 #include <limits>
@@ -38,6 +36,7 @@ ClusterHeap::ClusterHeap(int rows, int cols) :
     hash_cnt(0),
     locate(rows, cols),
     debug_label("Undefined"),
+    m_log(nullptr),
     cluster_table(),
     ref_table(),
     ready_to_pop()
@@ -55,16 +54,15 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
         {
             ref_table.emplace(curr_pos, hash_cnt);
         }
-        else if (streamlog::out.write<streamlog::ERROR>())
-#pragma omp critical
+        else if (m_log)
         {
             GridCoordinate gcoord = locate(curr_pos);
-            streamlog::out() << "Cluster heap " << debug_label << ": conflict for pixel "
-                << gcoord.row << ":" << gcoord.col << std::endl;
+            (*m_log) << MSG::ERROR << "Cluster heap " << debug_label << ": conflict for pixel "
+                << gcoord.row << ":" << gcoord.col << endmsg;
         }
     }
 
-    ClusterItem cl_item { {}, cluster.size() };
+    ClusterItem cl_item { {}, static_cast<int>(cluster.size()) };
     cluster_table.emplace(hash_cnt, cl_item);
 
     hash_cnt++;
@@ -87,18 +85,17 @@ void ClusterHeap::SetupPixel(int pos_x, int pos_y, PixelData pix)
         c_item.buffer.pixels.push_back(c_pix);
         c_item.buffer.time = pix.time;
 
-        if (c_item.buffer.pixels.size() == c_item.size)
+        if (static_cast<int>(c_item.buffer.pixels.size()) == c_item.size)
         {
             ready_to_pop.push_back(cluster_id);
         }
 
         ref_table.erase(pos);
     }
-    else if (streamlog::out.write<streamlog::ERROR>())
-#pragma omp critical
+    else if (m_log)
     {
-        streamlog::out() << "Cluster heap " << debug_label << ": undefined pixel "
-            << pos_x << ":" << pos_y << std::endl;
+        (*m_log) << MSG::ERROR << "Cluster heap " << debug_label << ": undefined pixel "
+            << pos_x << ":" << pos_y << endmsg;
     }
 }
 
@@ -130,12 +127,13 @@ HKBaseSensor::HKBaseSensor(int layer,
                             float thickness,
                             double pixelSizeX,
                             double pixelSizeY,
-                            string enc_str,
-                            int barrel_id,
+                            const TrackerCellID& cellIDCoder,
+                            int system_id,
                             double thr,
                             float fe_slope,
                             float starttime,
                             float t_step,
+                            MsgStream& log,
                             bool hk8_on) :
     PixelDigiMatrix(layer,
                     ladder,
@@ -146,12 +144,13 @@ HKBaseSensor::HKBaseSensor(int layer,
                     thickness,
                     pixelSizeX,
                     pixelSizeY,
-                    enc_str,
-                    barrel_id,
+                    cellIDCoder,
+                    system_id,
                     thr,
                     fe_slope,
                     starttime,
-                    t_step),
+                    t_step,
+                    log),
     heap_table(0, { 0, 0 }),
     HK8_enabled(hk8_on)
 {
@@ -166,6 +165,7 @@ HKBaseSensor::HKBaseSensor(int layer,
                 stringstream d_label;
                 d_label << "[" << GetLayer() << ":" << GetLadder() << ":" << h << ":" << k << "]";
                 heap_table[s_locate(h, k)].SetLabel(d_label.str());
+                heap_table[s_locate(h, k)].SetLog(_log);
             }
         }
     }
@@ -176,7 +176,7 @@ HKBaseSensor::HKBaseSensor(int layer,
 void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 {
     FindUnionAlgorithm  fu_algo { s_rows, s_colums };
-    BitField64 bf_encoder = getBFEncoder();
+    const std::uint64_t ladderCellID = getLadderCellID();
 
     if (!IsActive()) return;
 
@@ -187,7 +187,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
             //Sensor segments ordered row first
             LinearPosition sens_id = s_locate(h, k);
-            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
+            const std::uint64_t sensorCellID = _cellIDCoder.withSensor(ladderCellID, sens_id);
 
             ClusterHeap& c_heap = heap_table[sens_id];
 
@@ -272,7 +272,8 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 SegmentDigiHit digiHit = {
                     0., 0., 0.,
                     c_item.time,
-                    bf_encoder.lowWord(),
+                    sensorCellID,
+                    static_cast<int>(c_item.pixels.size()),
                     {}
                 };
 

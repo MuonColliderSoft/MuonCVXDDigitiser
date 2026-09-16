@@ -10,11 +10,12 @@ TrivialSensor::TrivialSensor(int layer,
                             float thickness,
                             double pixelSizeX,
                             double pixelSizeY,
-                            string enc_str,
-                            int barrel_id,
+                            const TrackerCellID& cellIDCoder,
+                            int system_id,
                             double thr,
                             float starttime,
                             float t_step,
+                            MsgStream& log,
                             bool hk8_on) :
     AbstractSensor(layer,
                    ladder,
@@ -25,11 +26,12 @@ TrivialSensor::TrivialSensor(int layer,
                    thickness,
                    pixelSizeX,
                    pixelSizeY,
-                   enc_str,
-                   barrel_id,
+                   cellIDCoder,
+                   system_id,
                    thr,
                    starttime,
-                   t_step),
+                   t_step,
+                   log),
     pixels(),
     charged_pix(0),
     charged_on_sensor(),
@@ -109,7 +111,7 @@ bool TrivialSensor::CheckStatus(int x, int y, PixelStatus pstat)
 void TrivialSensor::buildHits(SegmentDigiHitList& output)
 {
     FindUnionAlgorithm  fu_algo { s_rows, s_colums };
-    BitField64 bf_encoder = getBFEncoder();
+    const std::uint64_t ladderCellID = getLadderCellID();
 
     if (!IsActive()) return;
 
@@ -121,7 +123,7 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
 
             //Sensor segments ordered row first
             LinearPosition sens_id = s_locate(h, k);
-            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
+            const std::uint64_t sensorCellID = _cellIDCoder.withSensor(ladderCellID, sens_id);
 
             fu_algo.init();
 
@@ -182,7 +184,8 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
                 SegmentDigiHit digiHit = {
                     0., 0., 0.,
                     init_time + clock_cnt * clock_step,
-                    bf_encoder.lowWord(),
+                    sensorCellID,
+                    0,
                     {}
                 };
                 for (GridCoordinate gcoor : c_item)
@@ -209,4 +212,5 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
         }
     }
 }
+
 

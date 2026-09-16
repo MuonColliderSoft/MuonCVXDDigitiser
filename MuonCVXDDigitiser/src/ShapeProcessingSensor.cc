@@ -1,8 +1,5 @@
 #include "ShapeProcessingSensor.h"
 
-#include "streamlog/streamlog.h"
-
-//TODO remove
 #include <sstream>
 
 ShapeProcessingSensor::ShapeProcessingSensor(int layer,
@@ -14,12 +11,13 @@ ShapeProcessingSensor::ShapeProcessingSensor(int layer,
                                              float thickness,
                                              double pixelSizeX,
                                              double pixelSizeY,
-                                             string enc_str,
-                                             int barrel_id,
+                                             const TrackerCellID& cellIDCoder,
+                                             int system_id,
                                              double thr,
                                              float fe_slope,
                                              float starttime,
-                                             float t_step) :
+                                             float t_step,
+                                             MsgStream& log) :
     HKBaseSensor(layer,
                  ladder,
                  xsegmentNumber,
@@ -29,12 +27,13 @@ ShapeProcessingSensor::ShapeProcessingSensor(int layer,
                  thickness,
                  pixelSizeX,
                  pixelSizeY,
-                 enc_str,
-                 barrel_id,
+                 cellIDCoder,
+                 system_id,
                  thr,
                  fe_slope,
                  starttime,
-                 t_step),
+                 t_step,
+                 log),
     p_locate({ GetSensorRows(), GetSensorCols() })
 {}
 
@@ -132,10 +131,9 @@ vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& s
     result.pop_back();
     logstr << std::endl << "Contour size: " << result.size() << std::endl;
 
-    if(streamlog::out.write<streamlog::DEBUG7>())
-#pragma omp critical
+    if (_log.level() <= MSG::DEBUG)
     {
-        streamlog::out() << logstr.str() << std::endl;
+        _log << MSG::DEBUG << logstr.str() << endmsg;
     }
 
     return result;

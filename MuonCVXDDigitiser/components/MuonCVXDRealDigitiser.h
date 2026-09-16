@@ -1,203 +1,129 @@
 #ifndef MuonCVXDRealDigitiser_h
 #define MuonCVXDRealDigitiser_h 1
 
+#include <memory>
 #include <string>
+#include <tuple>
 #include <vector>
 
-#include "marlin/Processor.h"
-#include "lcio.h"
-#include "EVENT/SimTrackerHit.h"
-#include "EVENT/LCIO.h"
-#include "IMPL/TrackerHitImpl.h"
-#include <IMPL/TrackerHitPlaneImpl.h>
-#include "IMPL/SimTrackerHitImpl.h"
-#include <IMPL/LCCollectionVec.h>
-#include "DDRec/Surface.h"
-#include "DDRec/SurfaceManager.h"
+#include "Gaudi/Accumulators.h"
+#include "Gaudi/Accumulators/StaticRootHistogram.h"
+#include "Gaudi/Property.h"
+#include "k4FWCore/Transformer.h"
+#include "k4Interface/IGeoSvc.h"
+#include "k4Interface/IUniqueIDGenSvc.h"
 
-#include <TH1.h>
+#include "edm4hep/EventHeaderCollection.h"
+#include "edm4hep/SimTrackerHitCollection.h"
+#include "edm4hep/TrackerHitPlaneCollection.h"
+#include "edm4hep/TrackerHitSimTrackerHitLinkCollection.h"
 
-using marlin::Processor;
+#include "G4UniversalFluctuation.h"
+#include "LayerGeometry.h"
+#include "TrackerCellID.h"
 
-struct IonisationPoint
-{
-    double x;
-    double y;
-    double z;
-    double eloss;
-};
-
-struct SignalPoint
-{
-    double x;
-    double y;
-    double sigmaX;
-    double sigmaY;
-    double charge;
-};
-
-typedef std::vector<SimTrackerHitImpl*> SimTrackerHitImplVec;
-typedef std::vector<IonisationPoint> IonisationPointVec;
-typedef std::vector<SignalPoint> SignalPointVec;
-
-/**  Digitizer for Simulated Hits in the Vertex Detector. <br>
- * Digitization follows the procedure adopted in the CMS software package. 
+/** Digitizer for Simulated Hits in the barrel of the Vertex Detector, with a time-resolved
+ * model of the readout chip. <br>
+ * Digitization follows the procedure adopted in the CMS software package.
  * See https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuidePixelDigitization
- * 
- * @param CollectionName name of input SimTrackerHit collection <br>
- * (default parameter value : "VXDCollection")
- * @param OutputCollectionName name of output TrackerHitsPlane collection <br>
- * (default parameter value : "VTXTrackerHits")
- * @param RelationColName name of the LCRelation <br>
- * (default parameter value : "VTXTrackerHitRelations")
- * @param SubDetectorName name of the detector <br>
- * (default parameter value : "VertexBarrel")
- * @param TanLorentz tangent of the Lorentz angle <br>
- * (default parameter value : 0.8) <br>
- * @param TanLorentzY tangent of the Lorentz angle along Y <br>
- * (default parameter value : 0) <br>
- * @param CutOnDeltaRays cut on the energy of delta-electrons (in MeV) <br>
- * (default parameter value : 0.03) <br>
- * @param Diffusion diffusion coefficient for the nominal active layer thickness (in mm) <br>
- * (default parameter value : 0.002) <br>
- * @param PixelSizeX pixel size along direction perpendicular to beam axis (in mm) <br>
- * (default value : 0.025) <br>
- * @param PixelSizeY pixel size along beam axis (in mm) <br>
- * (default value : 0.025) <br>
- * @param ElectronsPerMeV number of electrons produced per MeV of deposited energy <br>
- * (default parameter value : 270.3) <br>
- * @param Threshold threshold on charge deposited on one pixel (in electons) <br>
- * (default parameter value : 200.0) <br>
- * @param SegmentLength segment length along track path which is used to subdivide track into segments (in mm).
- * The number of track subsegments is calculated as int(TrackLengthWithinActiveLayer/SegmentLength)+1 <br>
- * (default parameter value : 0.005) <br>
- * @param WidthOfCluster defines width in Gaussian sigmas to perform charge integration for 
- * a given pixel <br>
- * (default parameter value : 3.0) <br>
- * @param PoissonSmearing flag to switch on gaussian smearing of electrons collected on pixels <br>
- * (default parameter value : 1) <br>
- * @param ElectronicEffects flag to switch on gaussian smearing of signal (electronic noise) <br>
- * (default parameter value : 1) <br>
- * @param ElectronicNoise electronic noise in electrons <br>
- * (default parameter value : 100) <br>
- * @param StoreFiredPixels flag to store also the fired pixels (collection names: "VTXPixels") <br>
- * (default parameter value : 0) <br>
- * @param EnergyLoss Energy loss in keV/mm <br>
- * (default parameter value : 280.0) <br>
- * @param MaxEnergyDelta max delta in energy hit (difference from the hit simulated charged and the comuputed ones) in electrons <br>
- * (default parameter value : 100) <br>
-  * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
- * (default parameter value : 10) <br> 
- * @param SensorType Sensor model to be used (0 : ChipRD53A, 1 : Trivial) <br>
- * (default parameter value : 1) <br>
- * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
- * vertex barrel), 0 = off, 1 = on <br>
- * (default parameter value : -1) <br>
- * @param StatisticsFilename File name for statistics (None for disabling the feature) <br>
- * (default parameter value : None) <br>
- * <br>
+ *
+ * The SimTrackerHits of every ladder are fed in time order to a sensor model through a
+ * sliding time window of WindowSize ns. Pixels are clustered on each sensor of the ladder
+ * as the clock advances and a TrackerHitPlane is produced for each cluster.
+ *
+ * Inputs:
+ * - CollectionName: SimTrackerHits of the sub-detector
+ * - EventHeader: used to seed the random numbers for each event
+ *
+ * Outputs:
+ * - OutputCollectionName: reconstructed TrackerHitPlanes
+ * - RelationColName: links from each reconstructed hit to all the SimTrackerHits contributing to its cluster (weight 1)
+ *
+ * With CreateStats, cluster size, cluster energy and hit offset histograms are filled separately
+ * for clusters with at least one non-overlay SimTrackerHit (signal) and for the others (BIB).
+ *
+ * All the parameters are documented in the property declarations below.
  */
-class MuonCVXDRealDigitiser : public Processor
-{  
-public:
-  
-    virtual Processor*  newProcessor() { return new MuonCVXDRealDigitiser ; }
+struct MuonCVXDRealDigitiser final
+    : k4FWCore::MultiTransformer<std::tuple<edm4hep::TrackerHitPlaneCollection,
+                                            edm4hep::TrackerHitSimTrackerHitLinkCollection>(
+          const edm4hep::SimTrackerHitCollection&, const edm4hep::EventHeaderCollection&)>
+{
+    MuonCVXDRealDigitiser(const std::string& name, ISvcLocator* svcLoc);
 
-    MuonCVXDRealDigitiser();
+    StatusCode initialize() override;
 
-    /** Called at the begin of the job before anything is read.
-    * Use to initialize the processor, e.g. book histograms.
-    */
-    virtual void init();
+    std::tuple<edm4hep::TrackerHitPlaneCollection, edm4hep::TrackerHitSimTrackerHitLinkCollection>
+    operator()(const edm4hep::SimTrackerHitCollection& simTrackerHits,
+               const edm4hep::EventHeaderCollection& headers) const override;
 
-    /** Called for every run.
-    */
-    virtual void processRunHeader( LCRunHeader* run );
+private:
+    using Histogram = Gaudi::Accumulators::StaticRootHistogram<1>;
 
-    /** Called for every event - the working horse.
-    */
-    virtual void processEvent( LCEvent * evt ); 
+    Gaudi::Property<std::string> m_subDetName{this, "SubDetectorName", "VertexBarrel", "Name of Vertex detector"};
+    Gaudi::Property<std::vector<int>> m_layerIDs{this, "LayerIDs", {},
+        "ID of layers of subdetector, in the order of the geometry layers. Empty = 0, 1, 2, ..."};
+    Gaudi::Property<std::string> m_encodingStringVariable{this, "EncodingStringParameterName", "GlobalTrackerReadoutID",
+        "The name of the DD4hep constant that contains the cell ID encoding string for the sub-detector"};
+    Gaudi::Property<std::string> m_geoSvcName{this, "GeoSvcName", "GeoSvc", "The name of the GeoSvc instance"};
 
-    virtual void check( LCEvent * evt );
+    Gaudi::Property<double> m_tanLorentzAngleX{this, "TanLorentz", 0.8, "Tangent of Lorentz Angle"};
+    Gaudi::Property<double> m_tanLorentzAngleY{this, "TanLorentzY", 0., "Tangent of Lorentz Angle along Y"};
+    Gaudi::Property<double> m_cutOnDeltaRays{this, "CutOnDeltaRays", 0.030, "Cut on delta-ray energy (MeV)"};
+    // For diffusion-coeffieint calculation, see e.g. https://www.slac.stanford.edu/econf/C060717/papers/L008.PDF
+    // or directly Eq. 13 of https://cds.cern.ch/record/2161627/files/ieee-tns-07272141.pdf
+    // diffusionCoefficient = sqrt(2*D / mu / V), where
+    //  - D = 12 cm^2/s // diffusion constant
+    //  - mu = 450 cm^2/s/V // mobility
+    //  - V = 10-30 V // expected depletion voltage
+    //  => _diffusionCoefficient = 0.04-0.07
+    Gaudi::Property<double> m_diffusionCoefficient{this, "DiffusionCoefficient", 0.07, "Diffusion coefficient, sqrt(D / mu / V)."};
+    Gaudi::Property<double> m_pixelSizeX{this, "PixelSizeX", 0.025, "Pixel Size X"};
+    Gaudi::Property<double> m_pixelSizeY{this, "PixelSizeY", 0.025, "Pixel Size Y"};
+    Gaudi::Property<double> m_electronsPerKeV{this, "ElectronsPerKeV", 270.3, "Electrons per keV"};
+    Gaudi::Property<double> m_threshold{this, "Threshold", 200., "Cell Threshold in electrons"};
+    Gaudi::Property<double> m_segmentLength{this, "SegmentLength", 0.005, "Segment Length in mm"};
+    Gaudi::Property<double> m_energyLoss{this, "EnergyLoss", 280.0, "Energy Loss keV/mm"};
+    Gaudi::Property<double> m_deltaEne{this, "MaxEnergyDelta", 100.0,
+        "Max delta in energy between G4 prediction and random sampling for each hit in electrons"};
+    Gaudi::Property<double> m_maxTrkLen{this, "MaxTrackLength", 10.0, "Maximum values for track length (in mm)"};
+    Gaudi::Property<float> m_window_size{this, "WindowSize", 25., "Window size (in nsec)"};
+    Gaudi::Property<float> m_fe_slope{this, "RD53Aslope", 0.1, "ADC slope for chip RD53A"};
+    Gaudi::Property<int> m_sensor_type{this, "SensorType", 1, "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)"};
+    Gaudi::Property<int> m_zSegmented{this, "ZSegmented", -1,
+        "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on."};
+    Gaudi::Property<bool> m_create_stats{this, "CreateStats", false, "Fill cluster statistics histograms"};
 
-    /** Called after data processing for clean up.
-    */
-    virtual void end();
+    SmartIF<IGeoSvc> m_geoSvc;
+    SmartIF<IUniqueIDGenSvc> m_uidSvc;
 
-protected:
+    // Set in initialize() and read-only afterwards
+    LayerGeometry m_geo;
+    std::unique_ptr<TrackerCellID> m_cellID;
+    G4UniversalFluctuation m_fluctuate;
 
-    void PrintGeometryInfo();
+    mutable Gaudi::Accumulators::StatCounter<unsigned long> m_nSimHits{this, "SimTrackerHits per event"};
+    mutable Gaudi::Accumulators::StatCounter<unsigned long> m_nRecoHits{this, "TrackerHits per event"};
+    mutable Gaudi::Accumulators::StatCounter<unsigned long> m_nSimPerReco{this, "SimTrackerHits per TrackerHit"};
+    mutable Gaudi::Accumulators::Counter<> m_nOffSurface{this, "SimTrackerHits outside their surface"};
+    mutable Gaudi::Accumulators::MsgCounter<MSG::ERROR> m_pixelNumberError{this, "Pixel number error for ladder"};
+    mutable Gaudi::Accumulators::MsgCounter<MSG::ERROR> m_segmentNumberError{this, "Segment number error for ladder"};
+    mutable Gaudi::Accumulators::MsgCounter<MSG::ERROR> m_missingSurface{this, "No surface for the cell ID of a cluster"};
 
-    int _nRun;
-    int _nEvt;
-    int _debug;
-    int _totEntries;
-    int _barrelID;
-    std::string _subDetName;
+    std::unique_ptr<Histogram> m_signal_dHisto;
+    std::unique_ptr<Histogram> m_bib_dHisto;
+    std::unique_ptr<Histogram> m_signal_cSizeHisto;
+    std::unique_ptr<Histogram> m_signal_xSizeHisto;
+    std::unique_ptr<Histogram> m_signal_ySizeHisto;
+    std::unique_ptr<Histogram> m_signal_zSizeHisto;
+    std::unique_ptr<Histogram> m_signal_eDepHisto;
+    std::unique_ptr<Histogram> m_bib_cSizeHisto;
+    std::unique_ptr<Histogram> m_bib_xSizeHisto;
+    std::unique_ptr<Histogram> m_bib_ySizeHisto;
+    std::unique_ptr<Histogram> m_bib_zSizeHisto;
+    std::unique_ptr<Histogram> m_bib_eDepHisto;
 
-    // input/output collections
-    std::string _colName;
-    std::string _outputCollectionName;
-    std::string _colVTXRelation;
-
-    // processor parameters
-    double _tanLorentzAngleX;
-    double _tanLorentzAngleY;
-    double _cutOnDeltaRays;
-    double _diffusionCoefficient;
-    double _pixelSizeX;
-    double _pixelSizeY;
-    double _electronsPerKeV;
-    double _segmentLength;
-    double _threshold;
-    double _electronicNoise;
-    double _energyLoss;
-    double _deltaEne;
-  	double _maxTrkLen;
-    float _window_size;
-    float _fe_slope;
-    int _PoissonSmearing;
-    int _electronicEffects;
-    int _produceFullPattern;
-    int sensor_type;
-    int _zSegmented;
-    bool _isBarrel{false};
-    bool _isVertex{false};
-    bool _zSegmentedActive{false};
-
-    // geometry
-    int _numberOfLayers;
-    std::vector<int>   _laddersInLayer{};
-    std::vector<int>   _sensorsPerLadder{};
-    std::vector<float> _layerRadius{};
-    std::vector<float> _layerThickness{};
-    std::vector<float> _layerHalfThickness{};
-    std::vector<float> _layerLadderLength{};
-    std::vector<float> _layerLadderHalfWidth{};
-    std::vector<float> _layerPhiOffset{};
-    std::vector<float> _layerActiveSiOffset{};
-    std::vector<float> _layerHalfPhi{};
-    std::vector<float> _layerLadderWidth{};
-    const dd4hep::rec::SurfaceMap* _map ;
-
-    std::string stat_filename;
-    bool create_stats;
-    TH1F* signal_dHisto;
-    TH1F* bib_dHisto;
-    TH1F* signal_cSizeHisto;
-    TH1F* signal_xSizeHisto;
-    TH1F* signal_ySizeHisto;
-    TH1F* signal_zSizeHisto;
-    TH1F* signal_eDepHisto;
-    TH1F* bib_cSizeHisto;
-    TH1F* bib_xSizeHisto;
-    TH1F* bib_ySizeHisto;
-    TH1F* bib_zSizeHisto;
-    TH1F* bib_eDepHisto;
-
+    void PrintGeometryInfo() const;
 };
 
 #endif //MuonCVXDRealDigitiser_h
-
-
-

@@ -7,6 +7,7 @@ set_and_check(@PROJECT_NAME@_LIB_DIR "@PACKAGE_CMAKE_INSTALL_LIBDIR@")
 
 include(CMakeFindDependencyMacro)
 # modify to reflect dependencies
+find_dependency(Gaudi)
 find_dependency(EDM4HEP)
 find_dependency(DD4hep COMPONENTS DDRec)
 find_dependency(CLHEP)

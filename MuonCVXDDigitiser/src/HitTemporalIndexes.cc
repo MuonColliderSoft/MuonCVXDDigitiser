@@ -1,58 +1,42 @@
 #include "HitTemporalIndexes.h"
 
+#include <algorithm>
+
 using std::min;
 
-HitTemporalIndexes::HitTemporalIndexes(const LCCollection* STHcol):
-    cellid_decoder(STHcol),
+HitTemporalIndexes::HitTemporalIndexes(const edm4hep::SimTrackerHitCollection& STHcol,
+                                       const TrackerCellID& cellIDCoder):
     htable()
 {
-    for (int i = 0; i < STHcol->getNumberOfElements(); ++i)
+    for (const edm4hep::SimTrackerHit simTrkHit : STHcol)
     {
-        SimTrackerHit* simTrkHit = dynamic_cast<SimTrackerHit*>(STHcol->getElementAt(i));
-        int layer = cellid_decoder(simTrkHit)["layer"];
-        int ladder = cellid_decoder(simTrkHit)["module"];
-        int tkey = GetKey(layer, ladder);
-
-        auto item = htable.find(tkey);
-        if (item == htable.end())
-        {
-            hit_queue* n_queue = new hit_queue();
-            n_queue->push(simTrkHit);
-            htable.emplace(tkey, n_queue);
-        }
-        else
-        {
-            item->second->push(simTrkHit);
-        }
+        int layer = cellIDCoder.layer(simTrkHit.getCellID());
+        int ladder = cellIDCoder.module(simTrkHit.getCellID());
+        htable[GetKey(layer, ladder)].push(simTrkHit);
     }
 }
 
 HitTemporalIndexes::~HitTemporalIndexes()
-{
-    for (auto item : htable)
-    {
-        delete(item.second);
-    }
-}
+{}
 
-SimTrackerHit* HitTemporalIndexes::CurrentHit(int layer, int ladder)
+std::optional<edm4hep::SimTrackerHit> HitTemporalIndexes::CurrentHit(int layer, int ladder)
 {
     int tkey = GetKey(layer, ladder);
     auto item = htable.find(tkey);
-    if (item != htable.end() && !item->second->empty())
+    if (item != htable.end() && !item->second.empty())
     {
-        return item->second->top();
+        return item->second.top();
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 void HitTemporalIndexes::DisposeHit(int layer, int ladder)
 {
     int tkey = GetKey(layer, ladder);
     auto item = htable.find(tkey);
-    if (item != htable.end() && !item->second->empty())
+    if (item != htable.end() && !item->second.empty())
     {
-        item->second->pop();
+        item->second.pop();
     }
 }
 
@@ -60,15 +44,15 @@ int HitTemporalIndexes::GetHitNumber(int layer, int ladder)
 {
     int tkey = GetKey(layer, ladder);
     auto item = htable.find(tkey);
-    return item != htable.end() ? item->second->size() : -1;
+    return item != htable.end() ? item->second.size() : -1;
 }
 
 float HitTemporalIndexes::GetMinTime()
 {
     float min_time { MAXTIME };
-    for (auto item : htable)
+    for (auto& item : htable)
     {
-        min_time = min(min_time, item.second->top()->getTime());
+        if (!item.second.empty()) min_time = min(min_time, item.second.top().getTime());
     }
     return min_time;
 }
@@ -77,14 +61,13 @@ float HitTemporalIndexes::GetMinTime(int layer, int ladder)
 {
     int tkey = GetKey(layer, ladder);
     auto item = htable.find(tkey);
-    if (item != htable.end()) return item->second->top()->getTime();
+    if (item != htable.end() && !item->second.empty()) return item->second.top().getTime();
     return MAXTIME;
 }
 
 int HitTemporalIndexes::GetKey(int layer, int ladder)
 {
-    // TODO use cellID0 and/or cellID1
-    return layer * 1000 + ladder;
+    // TODO use the full cellID
+    // The module field of tracker cell IDs can exceed 1000 (11 bits in MAIA)
+    return (layer << 16) + ladder;
 }
-
-float HitTemporalIndexes::MAXTIME { std::numeric_limits<float>::max() };

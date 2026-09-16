@@ -51,12 +51,13 @@ public:
      * @param thickness The thickness the ladder
      * @param pixelSizeX The width of a pixel
      * @param pixelSizeY The length of a pixel
-     * @param enc_str The format string used to encode the CellID for any sensor of a ladder
-     * @param barrel_id The ID of the vertex barrel inside the detector
+     * @param cellIDCoder The encoder of the CellID for any sensor of a ladder
+     * @param system_id The system ID of the barrel inside the detector
      * @param thr The threshold for any pixel of the ladder
      * @param fe_slope The charge depletion slope of the FE
      * @param starttime The start time for the matrix evolution
      * @param t_step The clock period of the chip
+     * @param log The message stream for diagnostics
      */
     PixelDigiMatrix(int layer,
                     int ladder,
@@ -67,12 +68,13 @@ public:
                     float thickness,
                     double pixelSizeX,
                     double pixelSizeY,
-                    string enc_str,
-                    int barrel_id,
+                    const TrackerCellID& cellIDCoder,
+                    int system_id,
                     double thr,
                     float fe_slope,
                     float starttime,
-                    float t_step);
+                    float t_step,
+                    MsgStream& log);
     virtual ~PixelDigiMatrix();
 
     void Reset() override;
