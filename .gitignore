@@ -37,6 +37,7 @@ lib
 bin
 .project
 
+install
 
 # Python
 __pycache__/
