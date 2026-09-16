@@ -38,6 +38,7 @@ bin
 .project
 
 install
+validation_work
 
 # Python
 __pycache__/

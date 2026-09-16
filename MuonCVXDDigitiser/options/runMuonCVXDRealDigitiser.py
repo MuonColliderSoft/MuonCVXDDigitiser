@@ -2,7 +2,7 @@
 # Digitise the MAIA vertex barrel SimTrackerHits with MuonCVXDRealDigitiser
 #
 # k4run runMuonCVXDRealDigitiser.py --IOSvc.Input sim.edm4hep.root --IOSvc.Output digi_real.edm4hep.root \
-#       [--sensor-type {0,1}] [--stats-file stats.root] [--threads N]
+#       [--sensor-type {0,1}] [--stats-file stats.root] [--threads N] [--compact MAIA_v0.xml]
 #
 import os
 
@@ -16,13 +16,15 @@ from Configurables import Gaudi__Histograming__Sink__Root as RootHistoSink
 from Configurables import MuonCVXDRealDigitiser
 
 parser.add_argument("--threads", type=int, default=1, help="Number of threads (and event slots)")
+parser.add_argument("--compact", default=os.environ["K4GEO"] + "/MuColl/MAIA/compact/MAIA_v0/MAIA_v0.xml",
+                    help="Compact file of the detector geometry")
 parser.add_argument("--sensor-type", type=int, default=1, choices=[0, 1],
                     help="Sensor model: 0 = chip RD53A, 1 = trivial")
 parser.add_argument("--stats-file", default="", help="Fill the cluster statistics histograms and write them to this file")
 args = parser.parse_known_args()[0]
 
 geoservice = GeoSvc("GeoSvc")
-geoservice.detectors = [os.environ["K4GEO"] + "/MuColl/MAIA/compact/MAIA_v0/MAIA_v0.xml"]
+geoservice.detectors = [args.compact]
 geoservice.OutputLevel = INFO
 geoservice.EnableGeant4Geo = False
 

@@ -1,7 +1,7 @@
 #
 # Digitise the MAIA vertex and tracker SimTrackerHits with MuonCVXDDigitiser
 #
-# k4run runMuonCVXDDigitiser.py --IOSvc.Input sim.edm4hep.root --IOSvc.Output digi.edm4hep.root [--threads N]
+# k4run runMuonCVXDDigitiser.py --IOSvc.Input sim.edm4hep.root --IOSvc.Output digi.edm4hep.root [--threads N] [--compact MAIA_v0.xml]
 #
 import os
 
@@ -14,10 +14,12 @@ from Configurables import Gaudi__Monitoring__MessageSvcSink as MessageSvcSink
 from Configurables import MuonCVXDDigitiser
 
 parser.add_argument("--threads", type=int, default=1, help="Number of threads (and event slots)")
+parser.add_argument("--compact", default=os.environ["K4GEO"] + "/MuColl/MAIA/compact/MAIA_v0/MAIA_v0.xml",
+                    help="Compact file of the detector geometry")
 args = parser.parse_known_args()[0]
 
 geoservice = GeoSvc("GeoSvc")
-geoservice.detectors = [os.environ["K4GEO"] + "/MuColl/MAIA/compact/MAIA_v0/MAIA_v0.xml"]
+geoservice.detectors = [args.compact]
 geoservice.OutputLevel = INFO
 geoservice.EnableGeant4Geo = False
 
