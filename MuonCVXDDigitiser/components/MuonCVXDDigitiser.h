@@ -99,6 +99,9 @@ private:
         double currentPhi{0};
         double eSum{0};
         double segmentDepth{0};
+        // Pixel matrix of the sensor: [-sensorHalfLengthU, sensorHalfLengthU] x [-sensorHalfLengthV, sensorHalfLengthV]
+        double sensorHalfLengthU{0};
+        double sensorHalfLengthV{0};
         double currentLocalPosition[3]{};
         double currentEntryPoint[3]{};
         double currentExitPoint[3]{};
@@ -123,8 +126,8 @@ private:
     //  - V = 10-30 V // expected depletion voltage
     //  => _diffusionCoefficient = 0.04-0.07
     Gaudi::Property<double> m_diffusionCoefficient{this, "DiffusionCoefficient", 0.07, "Diffusion coefficient, sqrt(D / mu / V)."};
-    Gaudi::Property<double> m_pixelSizeX{this, "PixelSizeX", 0.025, "Pixel Size X"};
-    Gaudi::Property<double> m_pixelSizeY{this, "PixelSizeY", 0.025, "Pixel Size Y"};
+    Gaudi::Property<double> m_pixelSizeX{this, "PixelSizeX", 0.025, "Pixel size along the local u direction of the sensor (mm)"};
+    Gaudi::Property<double> m_pixelSizeY{this, "PixelSizeY", 0.025, "Pixel size along the local v direction of the sensor (mm)"};
     Gaudi::Property<double> m_electronsPerKeV{this, "ElectronsPerKeV", 270.3, "Electrons per keV"};
     Gaudi::Property<double> m_threshold{this, "Threshold", 500., "Cell Threshold in electrons"};
     Gaudi::Property<double> m_chargeMax{this, "ChargeMaximum", 15000., "Cell dynamic range in electrons"};
@@ -162,8 +165,6 @@ private:
     Gaudi::Property<double> m_sigma_jitterOverride{this, "SigmaJitter", -1.0, "Optional override for sigma_jitter (ns). Negative means use default."};
     Gaudi::Property<double> m_sigma_TDCOverride{this, "SigmaTDC", -1.0, "Optional override for sigma_TDC (ns). Negative means use default."};
     Gaudi::Property<double> m_sigma_clockOverride{this, "SigmaClock", -1.0, "Optional override for sigma_clock (ns). Negative means use default."};
-    Gaudi::Property<int> m_zSegmented{this, "ZSegmented", -1,
-        "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on."};
 
     SmartIF<IGeoSvc> m_geoSvc;
     SmartIF<IUniqueIDGenSvc> m_uidSvc;

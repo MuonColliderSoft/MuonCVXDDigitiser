@@ -3,6 +3,7 @@
 
 #include <iosfwd>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "DD4hep/Detector.h"
@@ -29,6 +30,22 @@ SubDetectorType classifySubDetector(const std::string& subDetName);
  *  Segmentation along z is only meaningful for barrel layers.
  */
 bool resolveZSegmented(int zSegmented, const SubDetectorType& type);
+
+/** Extent of the sensitive area of a sensor, centred on the origin of its surface.
+ *  The pixel matrix of the sensor covers [-halfLengthU, halfLengthU] x [-halfLengthV, halfLengthV]
+ *  in the local (u, v) frame of the surface. Lengths in mm.
+ */
+struct SensorExtent
+{
+    double halfLengthU{0};
+    double halfLengthV{0};
+};
+
+/** Extent of a surface: from the outline of the surface when available, which also covers
+ *  surfaces that are not rectangular (e.g. the trapezoidal petals of the vertex endcap,
+ *  whose length along u is the one at the origin), from its lengths along u and v otherwise.
+ */
+SensorExtent surfaceExtent(dd4hep::rec::ISurface& surface);
 
 /** Per-layer geometry of a planar tracker sub-detector, read from the
  *  DDRec ZPlanarData (barrel) or ZDiskPetalsData (endcap) extensions.
@@ -66,14 +83,20 @@ struct LayerGeometry
     /// Layer IDs as found in the cell ID, in the order of the geometry layers
     std::vector<int> layerIDs{};
 
+    /// Extent of every sensor, keyed on the cell ID of its surface
+    std::unordered_map<unsigned long, SensorExtent> sensorExtents{};
+
+    /// Extent of the sensor with the given cell ID, nullptr if unknown
+    const SensorExtent* sensorExtent(unsigned long cellID) const;
+
     /** Index of the geometry layer for a layer ID from the cell ID,
      *  or -1 if the ID is not in layerIDs.
      */
     int layerIndex(int layerID) const;
 
-    /// Number of pixels across the ladder (barrel) or petal (endcap)
+    /// Number of pixels across the ladder (barrel) or petal (endcap) of a layer
     int pixelsInColumn(int layer, double pixelSizeX) const;
-    /// Number of pixels along the ladder (barrel) or petal (endcap)
+    /// Number of pixels along the ladder (barrel) or petal (endcap) of a layer
     int pixelsInRow(int layer, double pixelSizeY) const;
 
     void print(std::ostream& out) const;
