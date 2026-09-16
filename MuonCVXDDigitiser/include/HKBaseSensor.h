@@ -50,11 +50,13 @@ public:
     void SetupPixel(int pos_x, int pos_y, PixelData pix);
     vector<BufferedCluster> PopClusters();
     void SetLabel(string dlabel) { debug_label = dlabel; }
+    void SetLog(MsgStream& log) { m_log = &log; }
 
 private:
     int hash_cnt;
     GridPosition locate;
     string debug_label;
+    MsgStream* m_log;
     ClusterTable cluster_table;
     ReferenceTable ref_table;
     vector<int>  ready_to_pop;
@@ -78,12 +80,13 @@ public:
                           float thickness,
                           double pixelSizeX,
                           double pixelSizeY,
-                          string enc_str,
-                          int barrel_id,
+                          const TrackerCellID& cellIDCoder,
+                          int system_id,
                           double thr,
                           float fe_slope,
                           float starttime,
                           float t_step,
+                          MsgStream& log,
                           bool hk8_on = true);
     virtual ~HKBaseSensor() {}
 

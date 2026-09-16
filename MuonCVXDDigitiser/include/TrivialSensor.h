@@ -15,11 +15,12 @@ public:
                     float thickness,
                     double pixelSizeX,
                     double pixelSizeY,
-                    string enc_str,
-                    int barrel_id,
+                    const TrackerCellID& cellIDCoder,
+                    int system_id,
                     double thr,
                     float starttime,
                     float t_step,
+                    MsgStream& log,
                     bool hk8_on = true);
 
     virtual ~TrivialSensor();

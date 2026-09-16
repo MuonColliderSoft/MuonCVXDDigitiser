@@ -1,54 +1,53 @@
 #ifndef HitTemporalIndexes_h
 #define HitTemporalIndexes_h 1
 
-#include <vector>
-#include <unordered_map>
-#include <queue>
 #include <limits>
+#include <optional>
+#include <queue>
+#include <unordered_map>
+#include <vector>
 
-#include "EVENT/SimTrackerHit.h"
-#include "EVENT/LCCollection.h"
-#include <UTIL/CellIDDecoder.h>
+#include "edm4hep/SimTrackerHit.h"
+#include "edm4hep/SimTrackerHitCollection.h"
+
+#include "TrackerCellID.h"
 
 using std::priority_queue;
 using std::unordered_map;
-using EVENT::SimTrackerHit;
-using EVENT::LCCollection;
-using UTIL::CellIDDecoder;
 
 class CmpTrackTime
 {
 public:
     CmpTrackTime(){}
-    bool operator()(SimTrackerHit* &alfa, SimTrackerHit* &beta)
+    bool operator()(const edm4hep::SimTrackerHit& alfa, const edm4hep::SimTrackerHit& beta) const
     {
-        return alfa->getTime() > beta->getTime();
-
+        return alfa.getTime() > beta.getTime();
     }
 };
 
-typedef priority_queue<SimTrackerHit*, std::vector<SimTrackerHit*>, CmpTrackTime> hit_queue;
+typedef priority_queue<edm4hep::SimTrackerHit, std::vector<edm4hep::SimTrackerHit>, CmpTrackTime> hit_queue;
 
-
+/**
+ * SimTrackerHits of a collection, grouped by layer and ladder and ordered by time.
+ * Layers are identified by the layer ID of the cell ID.
+ */
 class HitTemporalIndexes
 {
 public:
-    HitTemporalIndexes(const LCCollection* STHcol);
+    HitTemporalIndexes(const edm4hep::SimTrackerHitCollection& STHcol, const TrackerCellID& cellIDCoder);
     virtual ~HitTemporalIndexes();
-    SimTrackerHit* CurrentHit(int layer, int ladder);
+    std::optional<edm4hep::SimTrackerHit> CurrentHit(int layer, int ladder);
     void DisposeHit(int layer, int ladder);
     int GetHitNumber(int layer, int ladder);
     float GetMinTime();
     float GetMinTime(int layer, int ladder);
 
-    static float MAXTIME;
+    static constexpr float MAXTIME { std::numeric_limits<float>::max() };
 
 private:
     inline int GetKey(int layer, int ladder);
 
-    CellIDDecoder<SimTrackerHit> cellid_decoder;
-    unordered_map<int, hit_queue*> htable;
+    unordered_map<int, hit_queue> htable;
 };
 
 #endif //HitTemporalIndexes_h
-

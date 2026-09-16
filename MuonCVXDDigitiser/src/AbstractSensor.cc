@@ -1,9 +1,8 @@
 #include "AbstractSensor.h"
 #include <cmath>
 
-#include <UTIL/ILDConf.h>
-
-using lcio::ILDDetID;
+// Value of the side field for barrel detectors (ILDDetID::barrel in LCIO)
+static constexpr int BARREL_SIDE = 0;
 
 AbstractSensor::AbstractSensor( int layer,
                                 int ladder,
@@ -14,12 +13,13 @@ AbstractSensor::AbstractSensor( int layer,
                                 float thickness,
                                 double pixelSizeX,
                                 double pixelSizeY,
-                                string enc_str,
-                                int barrel_id,
+                                const TrackerCellID& cellIDCoder,
+                                int system_id,
                                 double thr,
                                 float starttime,
-                                float t_step):
-    _barrel_id(barrel_id),
+                                float t_step,
+                                MsgStream& log):
+    _system_id(system_id),
     _layer(layer),
     _ladder(ladder),
     _thickness(thickness),
@@ -27,7 +27,7 @@ AbstractSensor::AbstractSensor( int layer,
     _pixelSizeY(fabs(pixelSizeY)),
     _ladderLength(ladderLength > 0 ? ladderLength : 0),
     _ladderWidth(ladderWidth > 0 ? ladderWidth : 0),
-    cellFmtStr(enc_str),
+    _cellIDCoder(cellIDCoder),
     _thr_level(thr),
     init_time(starttime),
     clock_step(t_step),
@@ -35,6 +35,7 @@ AbstractSensor::AbstractSensor( int layer,
     s_locate({ 0, 0 }),
     status(MatrixStatus::ok),
     reset_simtable_at_once(true),
+    _log(log),
     simhit_table()
 {
     // The ladder must be a whole number of pixels, within 1 um: the lengths are floats, e.g. a
@@ -99,8 +100,7 @@ PixelData AbstractSensor::getPixel(int seg_x, int seg_y, int pos_x, int pos_y)
 
 bool AbstractSensor::checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
 {
-    // A position outside the sensor segment must not be read as a pixel of the next row or of the
-    // neighbouring segment
+    // A position outside the sensor segment must not be confused with a pixel of the neighbouring segment
     if (pos_x < 0 || pos_x >= s_rows || pos_y < 0 || pos_y >= s_colums)
         return pstat == PixelStatus::out_of_bounds;
 
@@ -109,15 +109,9 @@ bool AbstractSensor::checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, Pix
                         pstat);
 }
 
-BitField64 AbstractSensor::getBFEncoder()
+std::uint64_t AbstractSensor::getLadderCellID()
 {
-    BitField64 bf_encoder { cellFmtStr };
-    bf_encoder.reset();
-    bf_encoder[LCTrackerCellID::subdet()] = _barrel_id;
-    bf_encoder[LCTrackerCellID::side()] = ILDDetID::barrel;
-    bf_encoder[LCTrackerCellID::layer()] = _layer;
-    bf_encoder[LCTrackerCellID::module()] = _ladder;
-    return bf_encoder;
+    return _cellIDCoder.encode(_system_id, BARREL_SIDE, _layer, _ladder, 0);
 }
 
 bool AbstractSensor::check(int x, int y)
@@ -130,7 +124,7 @@ void AbstractSensor::InitHitRegister()
     if (reset_simtable_at_once) simhit_table.clear();
 }
 
-void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit* hit)
+void AbstractSensor::RegisterHit(int x, int y, const edm4hep::SimTrackerHit& hit)
 {
     simhit_table.emplace(l_locate(x, y), hit);
 }
@@ -140,7 +134,7 @@ void AbstractSensor::fillInHitRelation(SimHitSet& sset, LinearPosition pos)
     auto hit_range = simhit_table.equal_range(pos);
     for (auto it = hit_range.first; it != hit_range.second; ++it)
     {
-        sset.emplace(it->second);
+        sset.emplace(it->second.getObjectID().index, it->second);
     }
 
     if (!reset_simtable_at_once) simhit_table.erase(pos);

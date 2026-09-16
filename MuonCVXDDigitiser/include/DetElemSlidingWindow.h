@@ -3,16 +3,17 @@
 
 #include <list>
 
+#include "GaudiKernel/MsgStream.h"
+
 #include "HitTemporalIndexes.h"
 #include "AbstractSensor.h"
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 #include "G4UniversalFluctuation.h"
 
-#include <UTIL/CellIDDecoder.h>
+class EventRandom;
 
 using dd4hep::rec::SurfaceMap;
-using UTIL::CellIDDecoder;
 
 struct TimedSignalPoint
 {
@@ -21,7 +22,7 @@ struct TimedSignalPoint
     double sigmaX;
     double sigmaY;
     double charge;
-    SimTrackerHit* sim_hit;
+    edm4hep::SimTrackerHit sim_hit;
 };
 
 typedef std::list<TimedSignalPoint> TimedSignalPointList;
@@ -41,18 +42,22 @@ public:
                          double segmentLength,
                          double energyLoss,
                          double widthOfCluster,
-                         double electronicNoise,
                          double maxTrkLen,
                          double maxEnergyDelta,
                          const SurfaceMap* s_map,
-                         bool zSegmented);
+                         bool zSegmented,
+                         const G4UniversalFluctuation& fluctuate,
+                         EventRandom& random,
+                         MsgStream& log);
     virtual ~DetElemSlidingWindow();
     bool active();
     int process();
     float get_time();
+    /// Number of SimTrackerHits skipped because they are not on their surface
+    int get_off_surface() const { return off_surface; }
 
 private:
-    void StoreSignalPoints(SimTrackerHit* hit);
+    void StoreSignalPoints(const edm4hep::SimTrackerHit& hit);
     void UpdatePixels();
     double randomTail( const double qmin, const double qmax );
 
@@ -69,19 +74,15 @@ private:
     double _segmentLength;
     double _energyLoss;
     double _widthOfCluster;
-    double _electronicNoise;
     double _maxTrkLen;
     double _deltaEne;
     TimedSignalPointList signals;
     const SurfaceMap* surf_map;
-    CellIDDecoder<SimTrackerHit> cell_decoder;
-    G4UniversalFluctuation* _fluctuate;
+    const G4UniversalFluctuation& _fluctuate;
     bool _zSegmented;
+    EventRandom& _random;
+    MsgStream& _log;
+    int off_surface;
 };
-
-
-
-
-
 
 #endif //DetElemSlidingWindow_h
