@@ -7,6 +7,7 @@
 
 #include "DD4hep/DD4hepUnits.h"
 #include "DDRec/DetectorData.h"
+#include "DDRec/Surface.h"
 
 using dd4hep::DetElement;
 using dd4hep::rec::SurfaceManager;
@@ -34,6 +35,35 @@ SubDetectorType classifySubDetector(const std::string& subDetName)
     }
 
     return type;
+}
+
+SensorExtent surfaceExtent(dd4hep::rec::ISurface& surface)
+{
+    SensorExtent extent;
+    extent.halfLengthU = 0.5 * surface.length_along_u() / dd4hep::mm;
+    extent.halfLengthV = 0.5 * surface.length_along_v() / dd4hep::mm;
+
+    auto* volSurface = dynamic_cast<dd4hep::rec::Surface*>(&surface);
+    if (!volSurface) return extent;
+    const auto lines = volSurface->getLines();
+    if (lines.empty()) return extent;
+
+    const dd4hep::rec::Vector3D origin = surface.origin();
+    const dd4hep::rec::Vector3D u = surface.u();
+    const dd4hep::rec::Vector3D v = surface.v();
+    double halfU = 0;
+    double halfV = 0;
+    for (const auto& [start, end] : lines) {
+        for (const dd4hep::rec::Vector3D& point : {start, end}) {
+            const dd4hep::rec::Vector3D d = point - origin;
+            halfU = std::max(halfU, std::abs(d.dot(u)));
+            halfV = std::max(halfV, std::abs(d.dot(v)));
+        }
+    }
+    // Rounded to 1 nm, so that rounding errors of the outline do not shift the pixel grid
+    extent.halfLengthU = std::round(halfU / dd4hep::mm * 1e6) / 1e6;
+    extent.halfLengthV = std::round(halfV / dd4hep::mm * 1e6) / 1e6;
+    return extent;
 }
 
 bool resolveZSegmented(int zSegmented, const SubDetectorType& type)
@@ -82,6 +112,10 @@ LayerGeometry loadLayerGeometry(const dd4hep::Detector& detector,
     geo.surfaceMap = surfMan ? surfMan->map(subDetector.name()) : nullptr;
     if (!geo.surfaceMap) {
         throw std::runtime_error("Could not find surface map for detector: " + subDetName + " in SurfaceManager");
+    }
+    geo.sensorExtents.reserve(geo.surfaceMap->size());
+    for (const auto& [cellID, surface] : *geo.surfaceMap) {
+        geo.sensorExtents.emplace(cellID, surfaceExtent(*surface));
     }
 
     const int nLayers = geo.numberOfLayers;
@@ -155,6 +189,12 @@ int LayerGeometry::layerIndex(int layerID) const
     auto it = std::find(layerIDs.begin(), layerIDs.end(), layerID);
     if (it == layerIDs.end()) return -1;
     return std::distance(layerIDs.begin(), it);
+}
+
+const SensorExtent* LayerGeometry::sensorExtent(unsigned long cellID) const
+{
+    auto it = sensorExtents.find(cellID);
+    return it == sensorExtents.end() ? nullptr : &it->second;
 }
 
 int LayerGeometry::pixelsInColumn(int layer, double pixelSizeX) const

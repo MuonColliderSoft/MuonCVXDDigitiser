@@ -51,7 +51,8 @@ StatusCode MuonCVXDDigitiser::initialize()
     }
 
     try {
-        m_geo = loadLayerGeometry(*m_geoSvc->getDetector(), m_subDetName, m_zSegmented, m_layerIDs);
+        // The pixel matrix is the one of the sensor the hit is on: z segmentation of the ladders does not matter
+        m_geo = loadLayerGeometry(*m_geoSvc->getDetector(), m_subDetName, -1, m_layerIDs);
         m_cellID = std::make_unique<TrackerCellID>(m_geoSvc->constantAsString(m_encodingStringVariable));
     } catch (const std::exception& ex) {
         error() << ex.what() << endmsg;
@@ -367,6 +368,10 @@ void MuonCVXDDigitiser::FindLocalPosition(const edm4hep::SimTrackerHit& hit,
         return;
     }
     const ISurface* surf = sI->second;
+    // The pixel matrix covers the sensor the hit is on
+    const SensorExtent* extent = m_geo.sensorExtent(cellID);
+    state.sensorHalfLengthU = extent->halfLengthU;
+    state.sensorHalfLengthV = extent->halfLengthV;
     Vector3D oldPos(hit.getPosition().x, hit.getPosition().y, hit.getPosition().z);
     // We need it?
     if (!surf->insideBounds(dd4hep::mm * oldPos)) {
@@ -1104,50 +1109,35 @@ void MuonCVXDDigitiser::TransformToLab(const std::uint64_t cellID, const double*
 
 /**
  * Function calculates position in pixel matrix based on the
- * local coordinates of point in the ladder.
+ * local coordinates of point in the sensor.
  */
 void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int& ix, int& iy, const HitState& state) const
 {
-    int layer = state.currentLayer;
     // Shift all of L/2 so that all numbers are positive
-    if (m_geo.type.isBarrel) {
-        double yInLadder = y + m_geo.layerLadderLength[layer] / 2;
-        iy = int(yInLadder / m_pixelSizeY);
-        double xInLadder = x + m_geo.layerLadderHalfWidth[layer];
-        ix = int(xInLadder / m_pixelSizeX);
-    } else {
-        double yInPetal = y + m_geo.layerPetalLength[layer] / 2;
-        iy = int(yInPetal / m_pixelSizeY);
-        double xInPetal = x + m_geo.layerPetalOuterWidth[layer] / 2;
-        ix = int(xInPetal / m_pixelSizeX);
-    }
+    iy = int((y + state.sensorHalfLengthV) / m_pixelSizeY);
+    ix = int((x + state.sensorHalfLengthU) / m_pixelSizeX);
 }
 
 /**
  Function calculates position in the local frame
- based on the index of pixel in the ladder.
+ based on the index of pixel in the sensor.
 */
 void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double& x, double& y, const HitState& state) const
 {
-    int layer = state.currentLayer;
     // Put the point in the cell center
-    if (m_geo.type.isBarrel) {
-        y = ((0.5 + double(iy)) * m_pixelSizeY) - m_geo.layerLadderLength[layer] / 2;
-        x = ((0.5 + double(ix)) * m_pixelSizeX) - m_geo.layerLadderHalfWidth[layer];
-    } else {
-        y = ((0.5 + double(iy)) * m_pixelSizeY) - m_geo.layerPetalLength[layer] / 2;
-        x = ((0.5 + double(ix)) * m_pixelSizeX) - m_geo.layerPetalOuterWidth[layer] / 2;
-    }
+    y = ((0.5 + double(iy)) * m_pixelSizeY) - state.sensorHalfLengthV;
+    x = ((0.5 + double(ix)) * m_pixelSizeX) - state.sensorHalfLengthU;
 }
 
+// The tolerance keeps a sensor length that is a multiple of the pixel size from getting an extra pixel from rounding
 int MuonCVXDDigitiser::GetPixelsInaColumn(const HitState& state) const //SP: why columns!?! I would have guess row..
 {
-    return m_geo.pixelsInColumn(state.currentLayer, m_pixelSizeX);
+    return std::ceil(2 * state.sensorHalfLengthU / m_pixelSizeX - 1e-6);
 }
 
 int MuonCVXDDigitiser::GetPixelsInaRow(const HitState& state) const
 {
-    return m_geo.pixelsInRow(state.currentLayer, m_pixelSizeY);
+    return std::ceil(2 * state.sensorHalfLengthV / m_pixelSizeY - 1e-6);
 }
 
 void MuonCVXDDigitiser::PrintGeometryInfo() const

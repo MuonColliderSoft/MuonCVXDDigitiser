@@ -130,9 +130,8 @@ of the sensor surface.
 | `LayerIDs` | vector<int> | `[]` | Cell ID layer IDs of the geometry layers (required) |
 | `EncodingStringParameterName` | string | `"GlobalTrackerReadoutID"` | DD4hep constant with the cell ID encoding |
 | `GeoSvcName` | string | `"GeoSvc"` | Name of the GeoSvc instance |
-| `ZSegmented` | int | `-1` | Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on |
-| `PixelSizeX` | double | `0.025` | Pixel size across the ladder (mm) |
-| `PixelSizeY` | double | `0.025` | Pixel size along the ladder (mm) |
+| `PixelSizeX` | double | `0.025` | Pixel size along the local u direction of the sensor (mm) |
+| `PixelSizeY` | double | `0.025` | Pixel size along the local v direction of the sensor (mm) |
 | `TanLorentz` | double | `0.8` | Tangent of the Lorentz angle |
 | `TanLorentzY` | double | `0.` | Tangent of the Lorentz angle along y |
 | `DiffusionCoefficient` | double | `0.07` | Diffusion coefficient, √(2D/μ/V) |
@@ -218,17 +217,24 @@ The physics follows spg-berkeleylab/MuonCVXDDigitiser `master` (31bb9e2). The in
 - Output cell IDs use the encoding of the geometry, with all 64 bits, instead of the LCIO
   `LCTrackerCellID` encoding.
 - On/off parameters are `bool` properties.
+- `MuonCVXDDigitiser`: `ZSegmented` is removed, as the pixel matrix is always the one of the sensor the
+  hit is on.
 - `MuonCVXDRealDigitiser`: `LayerIDs` is new; `StatisticsFilename` is replaced by `CreateStats` and
   the histogram sink; `PoissonSmearing`, `ElectronicEffects`, `ElectronicNoise` and
   `StoreFiredPixels` are removed, as they had no effect.
-- The compile-time `ZSEGMENTED` option and OpenMP are gone: segmentation is set by `ZSegmented`,
-  and parallelism comes from the Gaudi multithreaded event processing.
+- The compile-time `ZSEGMENTED` option and OpenMP are gone: the segmentation of the
+  `MuonCVXDRealDigitiser` sensors is set by `ZSegmented`, and parallelism comes from the Gaudi
+  multithreaded event processing.
 
 ### Fixes that change the results
 
 `MuonCVXDDigitiser`:
-- The ladder length of tracker barrels, which have no sensor length in the geometry, is converted
-  from cm to mm: it was 10 times too short.
+- The pixel matrix is the one of the sensor the hit is on, with its extent taken from the outline of
+  the DD4hep surface, instead of one matrix per layer built from the ladder (barrel) or petal (endcap)
+  dimensions. The per-layer matrices did not match the MAIA sensors: the tracker barrel ladder length
+  was in cm instead of mm, the tracker endcap modules have several sizes, and the vertex endcap petal
+  width came from a hard-coded outer radius of 112 cm. The pixel boundaries were therefore not aligned
+  with the sensor edges, except in the vertex barrel, whose results do not change.
 - Each pixel has its own threshold, smeared around `Threshold`, instead of a smeared threshold
   accumulated from pixel to pixel along the cluster.
 - `CutOnDeltaRays` stays constant: the fluctuation model modified it in place for later segments,

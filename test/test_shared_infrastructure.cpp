@@ -69,6 +69,28 @@ void checkGeometry(const dd4hep::Detector& detector, const TrackerCellID& cellID
             seenLayerIDs.push_back(layerID);
     }
     std::sort(seenLayerIDs.begin(), seenLayerIDs.end());
+
+    // Pixel matrix extent of every sensor: the whole sensor for rectangular sensors, wider than the width at
+    // the origin for the trapezoidal petals of the vertex endcap
+    check(geo.sensorExtents.size() == geo.surfaceMap->size(), name + ": one extent per surface");
+    for (const auto& [id, surface] : *geo.surfaceMap) {
+        const SensorExtent* extent = geo.sensorExtent(id);
+        if (!extent) {
+            check(false, name + ": surface without extent");
+            continue;
+        }
+        const double halfU = 0.5 * surface->length_along_u() / dd4hep::mm;
+        const double halfV = 0.5 * surface->length_along_v() / dd4hep::mm;
+        check(std::abs(extent->halfLengthV - halfV) < 1e-6, name + ": extent along v");
+        if (name == "VertexEndcap")
+            check(extent->halfLengthU > halfU + 1., name + ": trapezoid extent along u");
+        else
+            check(std::abs(extent->halfLengthU - halfU) < 1e-6, name + ": extent along u");
+    }
+    const SensorExtent* firstExtent = geo.sensorExtent(geo.surfaceMap->begin()->first);
+    std::cout << name << " first sensor extent (mm): " << 2 * firstExtent->halfLengthU << " x "
+              << 2 * firstExtent->halfLengthV << "\n";
+    check(geo.sensorExtent(0) == nullptr, name + ": no extent for unknown cell ID");
     std::cout << name << " surface layer IDs:";
     for (int id : seenLayerIDs) std::cout << " " << id;
     std::cout << "\n\n";

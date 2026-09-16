@@ -5,7 +5,7 @@ A copy built with all the fixes reverted must agree with the Marlin processor: t
 port is faithful and that the remaining differences come from the fixes only.
 
 Usage: revert_fixes.py <source directory> <fix> [<fix> ...]
-Fixes: cutondeltarays, ladderlength, threshold
+Fixes: cutondeltarays, pixelgrid, threshold
 """
 import sys
 
@@ -21,11 +21,25 @@ FIXES = {
          "        if (m_cutOnDeltaRaysUpstream < 0) m_cutOnDeltaRaysUpstream = m_cutOnDeltaRays;\n"
          "        double& tmax = m_cutOnDeltaRaysUpstream;"),
     ],
-    # The ladder length of tracker barrels without sensor length was taken from zHalfSensitive in cm.
-    "ladderlength": [
+    # The pixel grid was defined per layer, from the ladder (barrel) or petal (endcap) dimensions instead of the
+    # sensor the hit is on, and the ladder length of tracker barrels without sensor length was in cm.
+    "pixelgrid": [
         ("MuonCVXDDigitiser/src/LayerGeometry.cc",
          "2 * z_layout.zHalfSensitive * dd4hep::cm / dd4hep::mm;",
          "2 * z_layout.zHalfSensitive;"),
+        ("MuonCVXDDigitiser/components/MuonCVXDDigitiser.cpp",
+         "    state.sensorHalfLengthU = extent->halfLengthU;\n    state.sensorHalfLengthV = extent->halfLengthV;",
+         "    (void)extent;\n"
+         "    state.sensorHalfLengthU = m_geo.type.isBarrel ? m_geo.layerLadderHalfWidth[state.currentLayer]\n"
+         "                                                  : m_geo.layerPetalOuterWidth[state.currentLayer] / 2;\n"
+         "    state.sensorHalfLengthV = m_geo.type.isBarrel ? m_geo.layerLadderLength[state.currentLayer] / 2\n"
+         "                                                  : m_geo.layerPetalLength[state.currentLayer] / 2;"),
+        ("MuonCVXDDigitiser/components/MuonCVXDDigitiser.cpp",
+         "    return std::ceil(2 * state.sensorHalfLengthU / m_pixelSizeX - 1e-6);",
+         "    return m_geo.pixelsInColumn(state.currentLayer, m_pixelSizeX);"),
+        ("MuonCVXDDigitiser/components/MuonCVXDDigitiser.cpp",
+         "    return std::ceil(2 * state.sensorHalfLengthV / m_pixelSizeY - 1e-6);",
+         "    return m_geo.pixelsInRow(state.currentLayer, m_pixelSizeY);"),
     ],
     # The smeared threshold was accumulated from pixel to pixel.
     "threshold": [

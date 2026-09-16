@@ -108,7 +108,7 @@ stage_build() {
     for variant in $VARIANTS; do
         case $variant in
             revert_cutondeltarays) fixes="cutondeltarays" ;;
-            revert_all) fixes="cutondeltarays ladderlength threshold" ;;
+            revert_all) fixes="cutondeltarays pixelgrid threshold" ;;
             *) echo "Unknown variant '$variant'" >&2; exit 1 ;;
         esac
         log "Building the Gaudi port with the fixes reverted: $fixes"
