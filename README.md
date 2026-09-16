@@ -60,6 +60,9 @@ residuals, links, cell IDs) and runs with 1 and 4 threads must give identical re
 Unit tests cover the geometry loading, the cell ID coding, the energy-loss fluctuation models and
 the pixel clustering.
 
+The comparison with the Marlin processors, which needs both the Marlin and the Key4hep software
+stacks, is in [test/validation](test/validation/README.md).
+
 ## Running
 
 Example options files for the MAIA detector are in `MuonCVXDDigitiser/options`:
