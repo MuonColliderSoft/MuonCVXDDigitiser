@@ -34,5 +34,15 @@ install(TARGETS MuonCVXDDigitiserCore
 # Gaudi algorithms
 ########################################################
 
-# The MuonCVXDDigitiserPlugins module (components/) is added once the
-# algorithms are ported to k4FWCore
+gaudi_add_module(MuonCVXDDigitiserPlugins
+  SOURCES
+    components/MuonCVXDDigitiser.cpp
+  LINK
+    MuonCVXDDigitiserCore
+    Gaudi::GaudiKernel
+    k4FWCore::k4FWCore
+    k4FWCore::k4Interface
+    EDM4HEP::edm4hep
+    DD4hep::DDRec
+    GSL::gsl
+)

@@ -1,283 +1,216 @@
 #ifndef MuonCVXDDigitiser_h
 #define MuonCVXDDigitiser_h 1
 
+#include <map>
+#include <memory>
 #include <string>
+#include <tuple>
 #include <vector>
 
-#include "marlin/Processor.h"
-#include "lcio.h"
-#include "EVENT/SimTrackerHit.h"
-#include "EVENT/LCIO.h"
-#include "IMPL/TrackerHitImpl.h"
-#include <IMPL/TrackerHitPlaneImpl.h>
-#include "IMPL/SimTrackerHitImpl.h"
-#include <IMPL/LCCollectionVec.h>
-#include "DDRec/Surface.h"
-#include "DDRec/SurfaceManager.h"
+#include "Gaudi/Accumulators.h"
+#include "Gaudi/Property.h"
+#include "k4FWCore/Transformer.h"
+#include "k4Interface/IGeoSvc.h"
+#include "k4Interface/IUniqueIDGenSvc.h"
+
+#include "edm4hep/EventHeaderCollection.h"
+#include "edm4hep/SimTrackerHitCollection.h"
+#include "edm4hep/TrackerHitPlaneCollection.h"
+#include "edm4hep/TrackerHitSimTrackerHitLinkCollection.h"
+
+#include "DigitiserTypes.h"
+#include "LayerGeometry.h"
 #include "MyG4UniversalFluctuationForSi.h"
+#include "TrackerCellID.h"
 
-using marlin::Processor;
+class EventRandom;
 
-struct IonisationPoint
-{
-    double x;
-    double y;
-    double z;
-    double eloss;
-};
-
-struct SignalPoint
-{
-    double x;
-    double y;
-    double sigmaX;
-    double sigmaY;
-    double charge;
-};
-
-typedef std::vector<SimTrackerHitImpl*> SimTrackerHitImplVec;
-typedef std::vector<IonisationPoint> IonisationPointVec;
-typedef std::vector<SignalPoint> SignalPointVec;
-
-/**  Digitizer for Simulated Hits in the Vertex Detector. <br>
- * Digitization follows the procedure adopted in the CMS software package. 
+/** Digitizer for Simulated Hits in the Vertex and Tracker Detectors. <br>
+ * Digitization follows the procedure adopted in the CMS software package.
  * See https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuidePixelDigitization
- * 
- * @param CollectionName name of input SimTrackerHit collection <br>
- * (default parameter value : "VXDCollection")
- * @param OutputCollectionName name of output TrackerHitsPlane collection <br>
- * (default parameter value : "VTXTrackerHits")
- * @param RelationColName name of the LCRelation <br>
- * (default parameter value : "VTXTrackerHitRelations")
- * @param SubDetectorName name of the detector <br>
- * (default parameter value : "VertexBarrel")
- * @param TanLorentz tangent of the Lorentz angle <br>
- * (default parameter value : 0.8) <br>
- * @param TanLorentzY tangent of the Lorentz angle along Y <br>
- * (default parameter value : 0) <br>
- * @param CutOnDeltaRays cut on the energy of delta-electrons (in MeV) <br>
- * (default parameter value : 0.03) <br>
- * @param Diffusion diffusion coefficient for the nominal active layer thickness (in mm) <br>
- * (default parameter value : 0.002) <br>
- * @param PixelSizeX pixel size along direction perpendicular to beam axis (in mm) <br>
- * (default value : 0.025) <br>
- * @param PixelSizeY pixel size along beam axis (in mm) <br>
- * (default value : 0.025) <br>
- * @param ElectronsPerMeV number of electrons produced per MeV of deposited energy <br>
- * (default parameter value : 270.3) <br>
- * @param Threshold threshold on charge deposited on one pixel (in electons) <br>
- * (default parameter value : 200.0) <br>
- * @param SegmentLength segment length along track path which is used to subdivide track into segments (in mm).
- * The number of track subsegments is calculated as int(TrackLengthWithinActiveLayer/SegmentLength)+1 <br>
- * (default parameter value : 0.005) <br>
- * @param WidthOfCluster defines width in Gaussian sigmas to perform charge integration for 
- * a given pixel <br>
- * (default parameter value : 3.0) <br>
- * @param PoissonSmearing flag to switch on gaussian smearing of electrons collected on pixels <br>
- * (default parameter value : 1) <br>
- * @param ThresholdSmearSigma: sigma of Gaussian used in threshold smearing <br>
- * (default parameter value: 25) <br>
- * @param ChargeDigitize flag to switch on charge discretization <br>
- * (default parameter value: 1) <br>
- * @param ChargeDigitizeNumBits number of bits used to determine bins for charge discretization <br>
- * (default parameter value: 4) <br>
- * @param ChargeDigitizeBinning binning scheme for charge discretization
- * (default parameter value; 1) <br>
- * @param ElectronicEffects flag to switch on gaussian smearing of signal (electronic noise) <br>
- * (default parameter value : 1) <br>
- * @param ElectronicNoise electronic noise in electrons <br>
- * (default parameter value : 100) <br>
- * @param StoreFiredPixels flag to store also the fired pixels (collection names: "VTXPixels") <br>
- * (default parameter value : 0) <br>
- * @param EnergyLoss Energy loss in keV/mm <br>
- * (default parameter value : 280.0) <br>
- * @param MaxEnergyDelta max delta in energy hit (difference from the hit simulated charged and the comuputed ones) in electrons <br>
- * (default parameter value : 100) <br>
-  * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
- * (default parameter value : 10) <br> 
- * @param TimeSmearingModel time smearing model: 0 = none, 1 = constant sigma taken from
- * TimeSmearingSigma, 2 = realistic resolution derived from the sensor thickness <br>
- * (default parameter value : 2) <br>
- * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
- * (default parameter value : 0) <br>
- * @param MSSliceThickness thickness (mm) of the slices the track is stepped through when
- * applying multiple scattering; the sensor is divided into a whole number of slices no
- * thicker than this <br>
- * (default parameter value : 0.005) <br>
- * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
- * vertex barrel, reproducing the geometry-derived behaviour), 0 = off, 1 = on <br>
- * (default parameter value : -1) <br>
- * @param SigmaLandau override for Landau sigma <br>
- * (default parameter value : -1, i.e. use the thickness-derived default) <br>
- * @param SigmaTimewalk override for timewalk sigma <br>
- * (default parameter value : -1, i.e. use the thickness-derived default) <br>
- * @param SigmaJitter override for jitter sigma <br>
- * (default parameter value : -1, i.e. use the thickness-derived default) <br>
- * @param SigmaTDC override for TDC sigma <br>
- * (default parameter value : -1, i.e. use the thickness-derived default) <br>
- * @param SigmaClock override for clock sigma <br>
- * (default parameter value : -1, i.e. use the thickness-derived default) <br>
- * @param TRise override for rise time <br>
- * (default parameter value : -1, i.e. use the thickness-derived default) <br>
- * @param LayerIDs list of layer IDs to process <br>
- * (default parameter value : empty) <br>
- * <br>
+ *
+ * For every SimTrackerHit the ionisation trail inside the sensor is split into segments,
+ * the charge is drifted (Lorentz angle, diffusion) to the readout plane and shared among
+ * pixels. Pixel charges are smeared (Poisson, electronic noise), thresholded and
+ * discretised, pixel times are smeared and discretised, and a TrackerHitPlane is
+ * reconstructed from the cluster.
+ *
+ * Inputs:
+ * - CollectionName: SimTrackerHits of the sub-detector
+ * - EventHeader: used to seed the random numbers for each event
+ *
+ * Outputs:
+ * - OutputCollectionName: reconstructed TrackerHitPlanes
+ * - RelationColName: links from each reconstructed hit to its SimTrackerHit (weight 1)
+ * - SimHitLocCollectionName: fired pixels, as SimTrackerHits with the position in pixel units in
+ *   the local sensor frame and EDep in electrons. Only filled if StoreFiredPixels is set.
+ * - RawHitsLinkColName: links from each reconstructed hit to its fired pixels (weight 1/N pixels).
+ *   Only filled if StoreFiredPixels is set.
+ *
+ * All the parameters are documented in the property declarations below.
  */
-class MuonCVXDDigitiser : public Processor
-{  
-public:
-  
-    virtual Processor*  newProcessor() { return new MuonCVXDDigitiser ; }
+struct MuonCVXDDigitiser final
+    : k4FWCore::MultiTransformer<std::tuple<edm4hep::SimTrackerHitCollection,
+                                            edm4hep::TrackerHitPlaneCollection,
+                                            edm4hep::TrackerHitSimTrackerHitLinkCollection,
+                                            edm4hep::TrackerHitSimTrackerHitLinkCollection>(
+          const edm4hep::SimTrackerHitCollection&, const edm4hep::EventHeaderCollection&)>
+{
+    MuonCVXDDigitiser(const std::string& name, ISvcLocator* svcLoc);
 
-    MuonCVXDDigitiser();
-    ~MuonCVXDDigitiser();
+    StatusCode initialize() override;
 
-    /** Called at the begin of the job before anything is read.
-    * Use to initialize the processor, e.g. book histograms.
-    */
-    virtual void init();
+    std::tuple<edm4hep::SimTrackerHitCollection,
+               edm4hep::TrackerHitPlaneCollection,
+               edm4hep::TrackerHitSimTrackerHitLinkCollection,
+               edm4hep::TrackerHitSimTrackerHitLinkCollection>
+    operator()(const edm4hep::SimTrackerHitCollection& simTrackerHits,
+               const edm4hep::EventHeaderCollection& headers) const override;
 
-    /** Called for every run.
-    */
-    virtual void processRunHeader( LCRunHeader* run );
+private:
+    /// A pixel fired by the current SimTrackerHit. Position in local sensor coordinates (mm).
+    struct PixelHit
+    {
+        double x;
+        double y;
+        double z;
+        float charge; // electrons
+        float time;   // ns
+    };
+    /// Pixels keyed on the pixel index: the ordering fixes the order in which random numbers are drawn
+    typedef std::map<int, PixelHit> PixelHitMap;
 
-    /** Called for every event - the working horse.
-    */
-    virtual void processEvent( LCEvent * evt ); 
+    /// Reconstructed cluster, in local sensor coordinates
+    struct ClusterHit
+    {
+        double position[3];
+        float eDep; // DD4hep energy units
+        float time;
+    };
 
-    virtual void check( LCEvent * evt );
+    /// Digitisation state of the SimTrackerHit being processed
+    struct HitState
+    {
+        int currentLayer{0};
+        int currentLadder{0};
+        int numberOfSegments{0};
+        double currentParticleMass{0};
+        double currentParticleMomentum{0};
+        double currentPhi{0};
+        double eSum{0};
+        double segmentDepth{0};
+        double currentLocalPosition[3]{};
+        double currentEntryPoint[3]{};
+        double currentExitPoint[3]{};
+        IonisationPointVec ionisationPoints;
+        SignalPointVec signalPoints;
+    };
 
-    /** Called after data processing for clean up.
-    */
-    virtual void end();
+    Gaudi::Property<std::string> m_subDetName{this, "SubDetectorName", "VertexBarrel", "Name of Vertex detector"};
+    Gaudi::Property<std::vector<int>> m_layerIDs{this, "LayerIDs", {}, "ID of layers of subdetector"};
+    Gaudi::Property<std::string> m_encodingStringVariable{this, "EncodingStringParameterName", "GlobalTrackerReadoutID",
+        "The name of the DD4hep constant that contains the cell ID encoding string for the sub-detector"};
+    Gaudi::Property<std::string> m_geoSvcName{this, "GeoSvcName", "GeoSvc", "The name of the GeoSvc instance"};
 
-protected:
+    Gaudi::Property<double> m_tanLorentzAngleX{this, "TanLorentz", 0.8, "Tangent of Lorentz Angle"};
+    Gaudi::Property<double> m_tanLorentzAngleY{this, "TanLorentzY", 0., "Tangent of Lorentz Angle along Y"};
+    Gaudi::Property<double> m_cutOnDeltaRays{this, "CutOnDeltaRays", 0.030, "Cut on delta-ray energy (MeV)"};
+    // For diffusion-coeffieint calculation, see e.g. https://www.slac.stanford.edu/econf/C060717/papers/L008.PDF
+    // or directly Eq. 13 of https://cds.cern.ch/record/2161627/files/ieee-tns-07272141.pdf
+    // diffusionCoefficient = sqrt(2*D / mu / V), where
+    //  - D = 12 cm^2/s // diffusion constant
+    //  - mu = 450 cm^2/s/V // mobility
+    //  - V = 10-30 V // expected depletion voltage
+    //  => _diffusionCoefficient = 0.04-0.07
+    Gaudi::Property<double> m_diffusionCoefficient{this, "DiffusionCoefficient", 0.07, "Diffusion coefficient, sqrt(D / mu / V)."};
+    Gaudi::Property<double> m_pixelSizeX{this, "PixelSizeX", 0.025, "Pixel Size X"};
+    Gaudi::Property<double> m_pixelSizeY{this, "PixelSizeY", 0.025, "Pixel Size Y"};
+    Gaudi::Property<double> m_electronsPerKeV{this, "ElectronsPerKeV", 270.3, "Electrons per keV"};
+    Gaudi::Property<double> m_threshold{this, "Threshold", 500., "Cell Threshold in electrons"};
+    Gaudi::Property<double> m_chargeMax{this, "ChargeMaximum", 15000., "Cell dynamic range in electrons"};
+    Gaudi::Property<double> m_segmentLength{this, "SegmentLength", 0.005, "Segment Length in mm"};
+    Gaudi::Property<bool> m_PoissonSmearing{this, "PoissonSmearing", true, "Apply Poisson smearing of electrons collected on pixels"};
+    Gaudi::Property<int> m_thresholdSmearSigma{this, "ThresholdSmearSigma", 25, "sigma of Gaussian used in threshold smearing, in electrons"};
+    Gaudi::Property<bool> m_DigitizeCharge{this, "DigitizeCharge", true, "Flag to enable Digitization of the charge collected on pixels"};
+    Gaudi::Property<int> m_ChargeDigitizeNumBits{this, "ChargeDigitizeNumBits", 4, "Number of bits used to determine bins for charge discretization"};
+    Gaudi::Property<int> m_ChargeDigitizeBinning{this, "ChargeDigitizeBinning", 1, "Binning scheme used for charge discretization"};
+    Gaudi::Property<bool> m_DigitizeTime{this, "DigitizeTime", true, "Flag to enable digitization of timing information."};
+    Gaudi::Property<int> m_TimeDigitizeNumBits{this, "TimeDigitizeNumBits", 10, "Number of bits used to determine bins for time discretization"};
+    Gaudi::Property<int> m_TimeDigitizeBinning{this, "TimeDigitizeBinning", 0, "Binning scheme used for time discretization"};
+    Gaudi::Property<double> m_timeMax{this, "TimeMaximum", 10.000, "Cell dynamic range for timing measurement [ns]"};
+    Gaudi::Property<double> m_timeSmearingSigma{this, "TimeSmearingSigma", 0.05,
+        "Constant intrinsic time measurement resolution (ns), used when TimeSmearingModel = 1."};
+    Gaudi::Property<int> m_timeSmearingModel{this, "TimeSmearingModel", 2,
+        "Time smearing model: 0 = none, 1 = constant sigma (TimeSmearingSigma), 2 = realistic, derived from sensor thickness."};
+    Gaudi::Property<bool> m_electronicEffects{this, "ElectronicEffects", true, "Apply Electronic Effects"};
+    Gaudi::Property<double> m_electronicNoise{this, "ElectronicNoise", 80., "electronic noise in electrons"};
+    Gaudi::Property<bool> m_produceFullPattern{this, "StoreFiredPixels", false, "Store fired pixels"};
+    Gaudi::Property<double> m_energyLoss{this, "EnergyLoss", 280.0, "Energy Loss keV/mm"};
+    Gaudi::Property<double> m_deltaEne{this, "MaxEnergyDelta", 100.0,
+        "Max delta in energy between G4 prediction and random sampling for each hit in electrons"};
+    Gaudi::Property<double> m_maxTrkLen{this, "MaxTrackLength", 10.0, "Maximum values for track length (in mm)"};
+    Gaudi::Property<bool> m_resimulateIonisation{this, "ResimulateIonisation", false,
+        "Source of the ionisation trail: false = take the path length and the deposited energy from the Geant4 hit, "
+        "true = re-simulate them from the local direction and the EnergyLoss parametrisation."};
+    Gaudi::Property<bool> m_doMultipleScattering{this, "DoMultipleScattering", false,
+        "Flag to enable multiple scattering of the track inside the sensor."};
+    Gaudi::Property<double> m_msSliceThickness{this, "MSSliceThickness", 0.005,
+        "Slice thickness (mm) used to step the track through the sensor when applying multiple scattering."};
+    Gaudi::Property<double> m_t_riseOverride{this, "TRise", -1.0, "Optional override for t_rise (ns). Negative means use default."};
+    Gaudi::Property<double> m_sigma_landauOverride{this, "SigmaLandau", -1.0, "Optional override for sigma_landau (ns). Negative means use default."};
+    Gaudi::Property<double> m_sigma_timewalkOverride{this, "SigmaTimewalk", -1.0, "Optional override for sigma_timewalk (ns). Negative means use default."};
+    Gaudi::Property<double> m_sigma_jitterOverride{this, "SigmaJitter", -1.0, "Optional override for sigma_jitter (ns). Negative means use default."};
+    Gaudi::Property<double> m_sigma_TDCOverride{this, "SigmaTDC", -1.0, "Optional override for sigma_TDC (ns). Negative means use default."};
+    Gaudi::Property<double> m_sigma_clockOverride{this, "SigmaClock", -1.0, "Optional override for sigma_clock (ns). Negative means use default."};
+    Gaudi::Property<int> m_zSegmented{this, "ZSegmented", -1,
+        "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on."};
 
-    int _nRun;
-    int _nEvt;
-    int _debug;
-    int _totEntries;
-    std::string _subDetName;
-    bool isBarrel{false};
-    bool isVertex{false};
-    bool isInnerTracker{false};
-    bool isOuterTracker{false};
+    SmartIF<IGeoSvc> m_geoSvc;
+    SmartIF<IUniqueIDGenSvc> m_uidSvc;
 
-    // input/output collections
-    std::string _colName;
-    std::string _outputCollectionName;
-    std::string _colVTXRelation;
+    // Set in initialize() and read-only afterwards
+    LayerGeometry m_geo;
+    std::unique_ptr<TrackerCellID> m_cellID;
+    MyG4UniversalFluctuationForSi m_fluctuate;
+    std::vector<std::vector<double>> m_DigitizedBins{}; // one charge bin table per layer
 
-    // processor parameters
-    double _tanLorentzAngleX;
-    double _tanLorentzAngleY;
-    double _cutOnDeltaRays;
-    double _diffusionCoefficient;
-    double _pixelSizeX;
-    double _pixelSizeY;
-    double _electronsPerKeV;
-    double _segmentLength;
-    double _threshold;
-    double _electronicNoise;
-    double _energyLoss;
-    double _deltaEne;
-  	double _maxTrkLen;	
-    int _PoissonSmearing;
-    int _thresholdSmearSigma;
-    int _DigitizeCharge;
-    int _ChargeDigitizeNumBits;
-    int _ChargeDigitizeBinning;
-    double _chargeMax;
-    int _DigitizeTime;
-    int _TimeDigitizeNumBits;
-    double _timeMax;
-    int _TimeDigitizeBinning;
-    double _timeSmearingSigma;
-    int _timeSmearingModel;
-    int _electronicEffects;
-    int _produceFullPattern;
-    int _resimulateIonisation;
-    int _doMultipleScattering;
-    double _msSliceThickness;
-    std::vector<int> _layerIDs;
+    mutable Gaudi::Accumulators::StatCounter<unsigned long> m_nSimHits{this, "SimTrackerHits per event"};
+    mutable Gaudi::Accumulators::StatCounter<unsigned long> m_nRecoHits{this, "TrackerHits per event"};
+    mutable Gaudi::Accumulators::Counter<> m_nOffSurface{this, "SimTrackerHits outside their surface"};
+    mutable Gaudi::Accumulators::Counter<> m_nNoCharge{this, "SimTrackerHits without charge above threshold"};
+    mutable Gaudi::Accumulators::MsgCounter<MSG::ERROR> m_unmappedLayer{this, "SimTrackerHit layer ID not found in LayerIDs"};
+    mutable Gaudi::Accumulators::MsgCounter<MSG::ERROR> m_invalidTimeBinning{this,
+        "Invalid setting for pixel time digitization binning. Retaining original time."};
 
-    // time digitization overrides
-    double _t_riseOverride;
-    double _sigma_landauOverride;
-    double _sigma_timewalkOverride;
-    double _sigma_jitterOverride;
-    double _sigma_TDCOverride;
-    double _sigma_clockOverride;
-
-    // charge discretization
-    std::vector<std::vector<double>> _DigitizedBins{};  // one bin table per layer
-    
-    // geometry
-    int _numberOfLayers;
-    std::vector<int>   _laddersInLayer{};
-    int _zSegmented;
-    std::vector<int>   _sensorsPerLadder{};
-    std::vector<float> _layerRadius{};
-    std::vector<float> _layerThickness{};
-    std::vector<float> _layerHalfThickness{};
-    std::vector<float> _layerLadderLength{};
-    std::vector<float> _layerLadderHalfWidth{};
-    std::vector<float> _layerPhiOffset{};
-    std::vector<float> _layerActiveSiOffset{};
-    std::vector<float> _layerHalfPhi{};
-    std::vector<float> _layerLadderWidth{};
-    // endcap specific
-    std::vector<float> _layerPetalLength{};
-    std::vector<float> _petalsInLayer{};
-    std::vector<float> _layerPetalInnerWidth{};
-    std::vector<float> _layerPetalOuterWidth{};
-    const dd4hep::rec::SurfaceMap* _map ;
-
-    // internal state
-    int _currentLayer;
-    int _currentLadder;
-    int _numberOfSegments;
-    double _currentParticleMass;
-    double _currentParticleMomentum;
-    double _currentPhi;
-    double _eSum;
-    double _segmentDepth;
-    double _currentLocalPosition[3];
-    double _currentEntryPoint[3];
-    double _currentExitPoint[3];
-    IonisationPointVec _ionisationPoints;
-    SignalPointVec _signalPoints;
-    MyG4UniversalFluctuationForSi *_fluctuate;
+    /* Geometry */
+    void FillChargeBins();
+    void PrintGeometryInfo() const;
 
     /* Charge digitization helpers */
-    void ProduceIonisationPoints(SimTrackerHit *hit);
-    void ProduceSignalPoints();
-    void ProduceHits(SimTrackerHitImplVec &simTrkVec, SimTrackerHit &simHit);
-    void PoissonSmearer(SimTrackerHitImplVec &simTrkVec);
-    void GainSmearer(SimTrackerHitImplVec &simTrkVec);
-    void ApplyThreshold(SimTrackerHitImplVec &simTrkVec);
-    void ChargeDigitizer(SimTrackerHitImplVec &simTrkVec);
+    void ProduceIonisationPoints(const edm4hep::SimTrackerHit& hit, HitState& state, EventRandom& random) const;
+    void ProduceSignalPoints(HitState& state) const;
+    void ProduceHits(PixelHitMap& pixels, const edm4hep::SimTrackerHit& simHit, const HitState& state) const;
+    void PoissonSmearer(PixelHitMap& pixels, EventRandom& random) const;
+    void GainSmearer(PixelHitMap& pixels, EventRandom& random) const;
+    void ApplyThreshold(PixelHitMap& pixels, EventRandom& random) const;
+    void ChargeDigitizer(PixelHitMap& pixels, const HitState& state) const;
 
     /* Time digitization helpers */
-    void TimeSmearer(SimTrackerHitImplVec &simTrkVec);
-    void TimeDigitizer(SimTrackerHitImplVec &simTrkVec);
+    void TimeSmearer(PixelHitMap& pixels, const HitState& state, EventRandom& random) const;
+    void TimeDigitizer(PixelHitMap& pixels) const;
 
     /* Reconstruction of measurement and helpers */
-    TrackerHitPlaneImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
-    void TransformToLab(const int cellID, const double *xLoc, double *xLab);
-    void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
-    void TransformXYToCellID(double x, double y, int & ix, int & iy);
-    void TransformCellIDToXY(int ix, int iy, double & x, double & y);
-    int GetPixelsInaRow();
-    int GetPixelsInaColumn();
+    bool ReconstructTrackerHit(const PixelHitMap& pixels, const HitState& state, ClusterHit& cluster) const;
+    void TransformToLab(const std::uint64_t cellID, const double* xLoc, double* xLab) const;
+    void FindLocalPosition(const edm4hep::SimTrackerHit& hit, double* localPosition, double* localDirection,
+                           HitState& state) const;
+    void TransformXYToCellID(double x, double y, int& ix, int& iy, const HitState& state) const;
+    void TransformCellIDToXY(int ix, int iy, double& x, double& y, const HitState& state) const;
+    int GetPixelsInaRow(const HitState& state) const;
+    int GetPixelsInaColumn(const HitState& state) const;
 
-    void LoadGeometry();
-    void PrintGeometryInfo();
-    double randomTail( const double qmin, const double qmax );
-    int layerMapping( int id);
+    double randomTail(const double qmin, const double qmax, EventRandom& random) const;
+    int layerMapping(int id) const;
 };
 
-#endif
-
-
-
+#endif //MuonCVXDDigitiser_h
