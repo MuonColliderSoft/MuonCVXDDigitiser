@@ -91,11 +91,12 @@ G4UniversalFluctuation::~G4UniversalFluctuation()
 // The main dedx fluctuation routine.
 // Arguments: momentum in MeV/c, mass in MeV, delta ray cut (tmax) in
 // MeV, silicon thickness in mm, mean eloss in MeV. 
-double G4UniversalFluctuation::SampleFluctuations(const double momentum,
+double G4UniversalFluctuation::SampleFluctuations(CLHEP::HepRandomEngine& engine,
+                                                  const double momentum,
                                                   const double mass,
                                                   const double tmax,
                                                   const double length,
-                                                  const double meanLoss)
+                                                  const double meanLoss) const
 {
     //  calculate actual loss from the mean loss
     //  The model used to get the fluctuation is essentially the same
@@ -117,7 +118,7 @@ double G4UniversalFluctuation::SampleFluctuations(const double momentum,
         siga = sqrt(siga);
         do
         {
-            loss = RandGaussQ::shoot(meanLoss, siga);
+            loss = RandGaussQ::shoot(&engine, meanLoss, siga);
         }
         while (loss < 0. || loss > 2. * meanLoss);
 
@@ -151,17 +152,17 @@ double G4UniversalFluctuation::SampleFluctuations(const double momentum,
             if (a3 > alim)
             {
                 siga = sqrt(a3) ;
-                p3 = max(0, int(RandGaussQ::shoot(a3, siga) + 0.5));
+                p3 = max(0, int(RandGaussQ::shoot(&engine, a3, siga) + 0.5));
             }
             else
             {
-                p3 = RandPoisson::shoot(a3);
+                p3 = RandPoisson::shoot(&engine, a3);
             }
             loss = p3 * e0;
 
             if (p3 > 0)
             {
-                loss += (1. - 2. * RandFlat::shoot()) * e0;
+                loss += (1. - 2. * RandFlat::shoot(&engine)) * e0;
             }
         }
         else
@@ -172,11 +173,11 @@ double G4UniversalFluctuation::SampleFluctuations(const double momentum,
             if (a3 > alim)
             {
                 siga = sqrt(a3);
-                p3 = max(0, int(RandGaussQ::shoot(a3, siga) + 0.5));
+                p3 = max(0, int(RandGaussQ::shoot(&engine, a3, siga) + 0.5));
             }
             else
             {
-                p3 = RandPoisson::shoot(a3);
+                p3 = RandPoisson::shoot(&engine, a3);
             }
 
             if (p3 > 0)
@@ -191,7 +192,7 @@ double G4UniversalFluctuation::SampleFluctuations(const double momentum,
 
                 for (int i = 0; i < p3; i++)
                 {
-                    loss += 1. / (1. - w * RandFlat::shoot());
+                    loss += 1. / (1. - w * RandFlat::shoot(&engine));
                 }
                 loss *= e0 * corrfac;  
             }        
@@ -204,11 +205,11 @@ double G4UniversalFluctuation::SampleFluctuations(const double momentum,
         if (a1 > alim)
         {
             siga = sqrt(a1) ;
-            p1 = max(0, int(RandGaussQ::shoot(a1, siga) + 0.5));
+            p1 = max(0, int(RandGaussQ::shoot(&engine, a1, siga) + 0.5));
         }
         else
         {
-            p1 = RandPoisson::shoot(a1);
+            p1 = RandPoisson::shoot(&engine, a1);
         }
 
         // excitation type 2
@@ -216,22 +217,22 @@ double G4UniversalFluctuation::SampleFluctuations(const double momentum,
         if (a2 > alim)
         {
             siga = sqrt(a2) ;
-            p2 = max(0, int(RandGaussQ::shoot(a2, siga) + 0.5));
+            p2 = max(0, int(RandGaussQ::shoot(&engine, a2, siga) + 0.5));
         }
         else
         {
-            p2 = RandPoisson::shoot(a2);
+            p2 = RandPoisson::shoot(&engine, a2);
         }
         loss = p1 * e1Fluct + p2 * e2Fluct;
 
         // smearing to avoid unphysical peaks
         if (p2 > 0)
         {
-            loss += (1. - 2. * RandFlat::shoot()) * e2Fluct;   
+            loss += (1. - 2. * RandFlat::shoot(&engine)) * e2Fluct;   
         }
         else if (loss > 0.)
         {
-            loss += (1. - 2. * RandFlat::shoot()) * e1Fluct;
+            loss += (1. - 2. * RandFlat::shoot(&engine)) * e1Fluct;
         }   
 
         // ionisation .......................................
@@ -240,11 +241,11 @@ double G4UniversalFluctuation::SampleFluctuations(const double momentum,
             if (a3 > alim)
             {
                 siga = sqrt(a3) ;
-                p3 = max(0, int(RandGaussQ::shoot(a3, siga) + 0.5));
+                p3 = max(0, int(RandGaussQ::shoot(&engine, a3, siga) + 0.5));
             }
             else
             {
-                p3 = RandPoisson::shoot(a3);
+                p3 = RandPoisson::shoot(&engine, a3);
             }
 
             if (p3 > 0)
@@ -255,14 +256,14 @@ double G4UniversalFluctuation::SampleFluctuations(const double momentum,
                 if (p3 > nmaxCont2)
                 {
                     double rfac = d_p3 / (double(nmaxCont2 + p3));
-                    na = RandGaussQ::shoot(d_p3 * rfac, double(nmaxCont1) * rfac);
+                    na = RandGaussQ::shoot(&engine, d_p3 * rfac, double(nmaxCont1) * rfac);
                     if (na > 0.)
                     {
                         alfa = w1 * double(nmaxCont2 + p3) / (w1 * double(nmaxCont2) + d_p3);
                         double alfa1 = alfa * log(alfa ) / (alfa - 1.);
                         double ea = na * ipotFluct * alfa1;
                         double sea = ipotFluct * sqrt(na * (alfa - pow(alfa1, 2)));
-                        loss += RandGaussQ::shoot(ea,sea);
+                        loss += RandGaussQ::shoot(&engine, ea,sea);
                     }
                 }
 
@@ -273,7 +274,7 @@ double G4UniversalFluctuation::SampleFluctuations(const double momentum,
                     double w  = (tmax - w2) / tmax;      
                     for (int k = 0; k < nb; k++)
                     {
-                        loss +=  w2 / (1. - w * RandFlat::shoot());
+                        loss +=  w2 / (1. - w * RandFlat::shoot(&engine));
                     }
                 }
             }

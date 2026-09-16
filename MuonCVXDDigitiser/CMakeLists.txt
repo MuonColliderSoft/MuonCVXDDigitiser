@@ -5,7 +5,9 @@
 # Sources are added here as they are ported away from Marlin/LCIO
 set(core_sources
   src/G4UniversalFluctuation.cc
+  src/LayerGeometry.cc
   src/MyG4UniversalFluctuationForSi.cc
+  src/TrackerCellID.cc
 )
 
 add_library(MuonCVXDDigitiserCore SHARED ${core_sources})
