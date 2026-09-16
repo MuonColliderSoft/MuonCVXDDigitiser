@@ -48,6 +48,8 @@
 #ifndef G4UniversalFluctuation_h
 #define G4UniversalFluctuation_h 
 
+namespace CLHEP { class HepRandomEngine; }
+
 class G4UniversalFluctuation {
 public:
 
@@ -56,11 +58,13 @@ public:
 
     // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
     // length in mm, meanLoss eloss in MeV.
-    double SampleFluctuations(const double momentum,
+    // All random numbers are drawn from engine.
+    double SampleFluctuations(CLHEP::HepRandomEngine& engine,
+                              const double momentum,
                               const double mass,
                               const double tmax,
                               const double length,
-                              const double meanLoss);
+                              const double meanLoss) const;
 
 private:
 

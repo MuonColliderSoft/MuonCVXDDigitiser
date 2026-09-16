@@ -49,6 +49,8 @@
 
 //#include "G4VEmFluctuationModel.hh"
 
+namespace CLHEP { class HepRandomEngine; }
+
 class MyG4UniversalFluctuationForSi {
 public:
 
@@ -58,11 +60,13 @@ public:
 
   // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
   // length in mm, meanLoss eloss in MeV.
-  double SampleFluctuations(const double momentum,
+  // All random numbers are drawn from engine.
+  double SampleFluctuations(CLHEP::HepRandomEngine& engine,
+                            const double momentum,
                             const double mass,
                             double& tmax,
                             const double length,
-                            const double meanLoss);
+                            const double meanLoss) const;
   
   //G4double Dispersion(    const G4Material*,
   //                        const G4DynamicParticle*,
@@ -81,7 +85,6 @@ private:
   //const G4ParticleDefinition* particle;
   //const G4Material* lastMaterial;
 
-  double particleMass{};
   double chargeSquare{};
 
   // data members to speed up the fluctuation calculation

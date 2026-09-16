@@ -31,6 +31,13 @@ include(GNUInstallDirs)
 
 add_subdirectory(MuonCVXDDigitiser)
 
+### TESTS ###################################################################
+
+include(CTest)
+if(BUILD_TESTING)
+  add_subdirectory(test)
+endif()
+
 ### DOCUMENTATION ###########################################################
 
 option(INSTALL_DOC "Set to OFF to skip build/install Documentation" OFF)
