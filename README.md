@@ -234,7 +234,9 @@ The physics follows spg-berkeleylab/MuonCVXDDigitiser `master` (31bb9e2). The in
   dimensions. The per-layer matrices did not match the MAIA sensors: the tracker barrel ladder length
   was in cm instead of mm, the tracker endcap modules have several sizes, and the vertex endcap petal
   width came from a hard-coded outer radius of 112 cm. The pixel boundaries were therefore not aligned
-  with the sensor edges, except in the vertex barrel, whose results do not change.
+  with the sensor edges, and in the outer tracker endcap the charge on the parts of the modules outside
+  the matrix was lost (efficiency 81% instead of 97% for muons). In the vertex barrel the results are
+  unchanged, apart from pixels below threshold beyond the sensor edge, which are no longer simulated.
 - Each pixel has its own threshold, smeared around `Threshold`, instead of a smeared threshold
   accumulated from pixel to pixel along the cluster.
 - `CutOnDeltaRays` stays constant: the fluctuation model modified it in place for later segments,

@@ -15,7 +15,7 @@ tracker sub-detectors are then digitised, with the fired pixels stored, by:
 | `marlin` | The Marlin processor |
 | `port` | The Gaudi port, as in this repository |
 | `revert_cutondeltarays` | The Gaudi port with the `CutOnDeltaRays` fix reverted |
-| `revert_all` | The Gaudi port with all the fixes that change the results reverted (`CutOnDeltaRays`, tracker barrel ladder length, threshold smearing) |
+| `revert_all` | The Gaudi port with all the fixes that change the results reverted (`CutOnDeltaRays`, pixel matrix of each sensor, threshold smearing) |
 
 The fixes are reverted in a copy of the sources by `revert_fixes.py`. `revert_all` must agree with
 Marlin: this shows that the port is faithful and that the differences between `port` and `marlin` come
@@ -95,12 +95,19 @@ p < 0.001 on the residuals, cluster size and charge).
   Marlin effectively ran with a delta-ray cut decreasing to about 1.7 keV instead of the configured
   30 keV, which suppressed the Landau tail of the energy loss. With the fix the charge is 9% higher, the
   clusters are 3% smaller and the residuals have larger tails.
-- In the inner and outer tracker barrels, the ladder length fix moves the pixel grid by 10 µm in the
-  local v direction, so that the pixel boundaries coincide with the edges of the 30.1 mm modules; the
-  efficiency does not change. The fired pixels of the port and of Marlin therefore never have the same
-  coordinates there (pixel overlap 0 unless `revert_all`).
-- The same conclusions hold for all the tracker sub-detectors: with a 200-event sample, `revert_all` is
-  compatible with Marlin everywhere, and the `CutOnDeltaRays` fix raises the median cluster charge by
-  5–10% in every sub-detector.
+- The port uses the pixel matrix of the sensor each hit is on, while Marlin used one matrix per layer
+  built from the ladder or petal dimensions. Outside the vertex barrel, the pixel boundaries therefore
+  move (the fired pixels of the port and of Marlin never have the same coordinates there, pixel overlap
+  0 unless `revert_all`), and in the outer tracker endcap Marlin lost the charge on the parts of the
+  modules outside its matrix:
+
+  | 200 events, all θ, default settings | VXD endcap | IT barrel | IT endcap | OT barrel | OT endcap |
+  |---|---|---|---|---|---|
+  | Efficiency, Marlin | 0.985 | 0.966 | 0.979 | 0.961 | 0.815 |
+  | Efficiency, Gaudi port | 0.986 | 0.966 | 0.979 | 0.961 | 0.974 |
+
+- With a 200-event sample over all θ, `revert_all` is compatible with Marlin in all the tracker
+  sub-detectors, and the `CutOnDeltaRays` fix raises the median cluster charge by 5–10% in every
+  sub-detector.
 - The Marlin processor crashes when the job terminates (`malloc_consolidate(): invalid chunk size`),
   after its output is complete.
