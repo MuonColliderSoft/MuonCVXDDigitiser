@@ -39,6 +39,7 @@ bin
 
 install
 validation_work
+digi_studies_work
 
 # Python
 __pycache__/
