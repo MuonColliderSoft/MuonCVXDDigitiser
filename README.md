@@ -62,6 +62,8 @@ the pixel clustering.
 
 The comparison with the Marlin processors, which needs both the Marlin and the Key4hep software
 stacks, is in [test/validation](test/validation/README.md).
+Studies of the tracker digitisation in MAIAConfig (parametric `DDPlanarDigi` vs `MuonCVXDDigitiser`
+hits, and cluster shapes from the fired pixels) are in [test/digi_studies](test/digi_studies/README.md).
 
 ## Running
 
