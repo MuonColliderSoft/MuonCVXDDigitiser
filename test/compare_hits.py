@@ -2,11 +2,13 @@
 """Compare two hit dumps from dump_hits.py hit by hit and in summary.
 
 Usage: compare_hits.py <a.csv> <b.csv> [--label TEXT] [--markdown FILE] [--expect identical]
-                       [--max-rel-diff METRIC=VALUE ...]
+                       [--max-rel-diff METRIC=VALUE ...] [--differ-exit-code N]
 
 Hits are matched by event and SimTrackerHit cell ID and position. With --expect identical the
 script fails unless every hit is the same in both dumps; --max-rel-diff bounds the relative
-difference of a summary metric (e.g. mean_pixels=0.05) in every sub-detector.
+difference of a summary metric (e.g. mean_pixels=0.05) in every sub-detector. With
+--differ-exit-code N, dumps that differ are not a failure but exit with code N, so that a caller
+can tell a difference from an error.
 """
 import argparse
 import os
@@ -24,6 +26,7 @@ parser.add_argument("--label", default="")
 parser.add_argument("--markdown", help="append the comparison as a Markdown table to this file")
 parser.add_argument("--expect", choices=["identical"])
 parser.add_argument("--max-rel-diff", action="append", default=[], metavar="METRIC=VALUE")
+parser.add_argument("--differ-exit-code", type=int, help="exit code when the dumps differ")
 args = parser.parse_args()
 
 hits_a, meta_a = load_hits(args.a)
@@ -72,4 +75,6 @@ if args.markdown:
 
 for message in failures:
     print("FAILED:", message)
-sys.exit(1 if failures else 0)
+if failures:
+    sys.exit(1)
+sys.exit(args.differ_exit_code if args.differ_exit_code and not all_identical else 0)
