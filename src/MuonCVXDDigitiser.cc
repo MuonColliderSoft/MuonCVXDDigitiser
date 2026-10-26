@@ -298,7 +298,6 @@ void MuonCVXDDigitiser::LoadGeometry()
       for(ZPlanarData::LayerLayout z_layout : barrelLayers)
 	{
 	  // ALE: Geometry is in cm, convert all lenght in mm
-	  // ALE: Geometry is in cm, convert all length to mm
 	  _laddersInLayer[curr_layer] = z_layout.ladderNumber;
 	  _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
 	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
@@ -417,6 +416,10 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 dynamic_cast<SimTrackerHit*>(STHcol->getElementAt(i));
             // use CellID to set layer and ladder numbers
             _currentLayer  = layerMapping(cellid_decoder( simTrkHit )["layer"]);
+            // A layer missing from LayerIDs has no geometry: skip the hit before anything indexes
+            // the per-layer arrays with -1
+            if (_currentLayer == -1)
+              continue;
             _currentLadder = cellid_decoder( simTrkHit )["module"];
             streamlog_out( DEBUG7 ) << "Processing simHit #" << i << ", from layer=" << _currentLayer << ", module=" << _currentLadder << std::endl;
             streamlog_out (DEBUG6) << "- EDep = " << simTrkHit->getEDep() *dd4hep::GeV / dd4hep::keV << " keV, path length = " << simTrkHit->getPathLength() * 1000. << " um" << std::endl;
@@ -451,7 +454,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
             streamlog_out (DEBUG6) << "- Quality = " << simTrkHit->getQuality() << std::endl;
 
-            ProduceIonisationPoints( simTrkHit );       
+            ProduceIonisationPoints( simTrkHit );
+            // -1 here: the hit is outside the bounds of its sensor surface
             if (_currentLayer == -1)
               continue;
             ProduceSignalPoints();
@@ -649,15 +653,25 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     // Add also z ccordinate
     Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);
     localPosition[2] = ( dd4hep::mm * oldPos - dd4hep::cm * origin ).dot( surf->normal() ) / dd4hep::mm;
+    // Prefer the momentum recorded at the hit: that is the direction inside the sensor, with
+    // everything upstream (bending, scattering, energy loss) already folded in.
+    // Fall back to the MC particle only when the hit carries no momentum, as not every
+    // producer fills it.
     double Momentum[3];
     EVENT::MCParticle *mcp = hit->getMCParticle();
+    const float* hitMomentum = hit->getMomentum();
+    bool useHitMomentum = (hitMomentum[0] != 0.f || hitMomentum[1] != 0.f || hitMomentum[2] != 0.f);
     for (int j = 0; j < 3; ++j) {
-      if (mcp) {
+      if (useHitMomentum) {
+        Momentum[j] = hitMomentum[j] * dd4hep::GeV;
+      } else if (mcp) {
         Momentum[j] = mcp->getMomentum()[j] * dd4hep::GeV;
       } else {
-        Momentum[j] = hit->getMomentum()[j];
+        Momentum[j] = 0.;
       }
     }
+    if (!useHitMomentum)
+        streamlog_out( DEBUG5 ) << "Hit carries no momentum, falling back to the MC particle" << std::endl;
     // as default put electron's mass
     _currentParticleMass = 0.510e-3 * dd4hep::GeV;
     if (hit->getMCParticle())
@@ -723,9 +737,12 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         double y = pos[1] + tany * (z - pos[2]);
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
         // length in mm, meanLoss eloss in MeV.
-        double de = _fluctuate->SampleFluctuations(double(_currentParticleMomentum * dd4hep::keV / dd4hep::MeV),
-                                                   double(_currentParticleMass * dd4hep::keV / dd4hep::MeV),
-                                                   _cutOnDeltaRays,
+        // SampleFluctuations modifies the delta-ray cut it is given: pass a copy, or the cut
+        // drifts from segment to segment and event to event
+        double tmax = _cutOnDeltaRays;
+        double de = _fluctuate->SampleFluctuations(double(_currentParticleMomentum / dd4hep::MeV),
+                                                   double(_currentParticleMass / dd4hep::MeV),
+                                                   tmax,
                                                    segmentLength,
                                                    double(dEmean / dd4hep::MeV)) * dd4hep::MeV;
         _eSum = _eSum + de;
