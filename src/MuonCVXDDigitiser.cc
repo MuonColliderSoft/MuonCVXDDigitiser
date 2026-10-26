@@ -417,6 +417,10 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 dynamic_cast<SimTrackerHit*>(STHcol->getElementAt(i));
             // use CellID to set layer and ladder numbers
             _currentLayer  = layerMapping(cellid_decoder( simTrkHit )["layer"]);
+            // A layer missing from LayerIDs has no geometry: skip the hit before anything indexes
+            // the per-layer arrays with -1
+            if (_currentLayer == -1)
+              continue;
             _currentLadder = cellid_decoder( simTrkHit )["module"];
             streamlog_out( DEBUG7 ) << "Processing simHit #" << i << ", from layer=" << _currentLayer << ", module=" << _currentLadder << std::endl;
             streamlog_out (DEBUG6) << "- EDep = " << simTrkHit->getEDep() *dd4hep::GeV / dd4hep::keV << " keV, path length = " << simTrkHit->getPathLength() * 1000. << " um" << std::endl;
@@ -451,7 +455,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
             streamlog_out (DEBUG6) << "- Quality = " << simTrkHit->getQuality() << std::endl;
 
-            ProduceIonisationPoints( simTrkHit );       
+            ProduceIonisationPoints( simTrkHit );
+            // -1 here: the hit is outside the bounds of its sensor surface
             if (_currentLayer == -1)
               continue;
             ProduceSignalPoints();
@@ -735,9 +740,12 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         double y = pos[1] + tany * (z - pos[2]);
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
         // length in mm, meanLoss eloss in MeV.
+        // SampleFluctuations modifies the delta-ray cut it is given: pass a copy, or the cut
+        // drifts from segment to segment and event to event
+        double tmax = _cutOnDeltaRays;
         double de = _fluctuate->SampleFluctuations(double(_currentParticleMomentum / dd4hep::MeV),
                                                    double(_currentParticleMass / dd4hep::MeV),
-                                                   _cutOnDeltaRays,
+                                                   tmax,
                                                    segmentLength,
                                                    double(dEmean / dd4hep::MeV)) * dd4hep::MeV;
         _eSum = _eSum + de;
