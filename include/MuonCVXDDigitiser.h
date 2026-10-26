@@ -175,7 +175,7 @@ protected:
     std::vector<int> _layerIDs;
 
     // charge discretization
-    std::vector<double> _DigitizedBins{};
+    std::vector<std::vector<double>> _DigitizedBins{};  // one bin table per layer
     
     // geometry
     int _numberOfLayers;
