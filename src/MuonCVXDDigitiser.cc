@@ -1,6 +1,8 @@
 #include "MuonCVXDDigitiser.h"
+
 #include <iostream>
 #include <algorithm>
+#include <cmath>
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
 #include <UTIL/CellIDEncoder.h>
@@ -31,14 +33,17 @@ using dd4hep::rec::SurfaceMap;
 using dd4hep::rec::ISurface;
 using dd4hep::rec::Vector2D;
 using dd4hep::rec::Vector3D;
-MuonCVXDDigitiser aMuonCVXDDigitiser ;
+
+MuonCVXDDigitiser aMuonCVXDDigitiser;
+
 MuonCVXDDigitiser::MuonCVXDDigitiser() :
     Processor("MuonCVXDDigitiser"),
     _nRun(0),
     _nEvt(0),
     _totEntries(0),
     _map(nullptr),
-    _currentLayer(0)
+    _currentLayer(0),
+    _fluctuate(nullptr)
 {
     _description = "MuonCVXDDigitiser should create VTX TrackerHits from SimTrackerHits";
     registerInputCollection(LCIO::SIMTRACKERHIT,
@@ -216,6 +221,14 @@ void MuonCVXDDigitiser::init()
     _totEntries = 0;
     _fluctuate = new MyG4UniversalFluctuationForSi();
 }
+
+MuonCVXDDigitiser::~MuonCVXDDigitiser()
+{
+    if (_fluctuate) {
+        delete _fluctuate;
+        _fluctuate = nullptr;
+    }
+}
 void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 { 
     _nRun++ ;
@@ -314,13 +327,9 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  // Note: petal-like structure but current geometry only defines a single sensitive element for the whole disk afaics.
 	  // The structure is defined in /opt/ilcsoft/muonc/DD4hep/v01-25-01/DDRec/include/DDRec/DetectorData.h
 
-      //_petalsInLayer[curr_layer] = z_layout.ladderNumber;
-	  //_layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
 	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 
-	  //_sensorsPerPetal[curr_layer] = z_layout.sensorsPerPetal;
-      // CS: does the petal sensitive length include all petal sub-sensors?
 	  _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
 
 	  _layerPetalInnerWidth[curr_layer] = z_layout.widthInnerSensitive * dd4hep::cm / dd4hep::mm ;
@@ -336,15 +345,6 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  curr_layer++;
 	}
     }
-
-    // temp fix for issue: z_layout.lengthSensor = 0 for the inner tracker barrel
-    // manually hard code values for ladderlength
-    /* if (_layerLadderLength[0] == 0 && isInnerTracker && isBarrel){
-        _layerLadderLength = {963.2,963.2,1384.6};
-    }
-    if (_layerLadderLength[0] == 0 && $$ isOuterTracker && isBarrel){
-        _layerLadderLength = {1264.2*2,1264.2*2,1264.2*2};
-    } */
 
     PrintGeometryInfo();
 
@@ -410,6 +410,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
         }
         int nSimHits = STHcol->getNumberOfElements();
         streamlog_out( DEBUG9 ) << "Processing collection " << _colName  << " with " <<  nSimHits  << " hits ... " << std::endl ;
+
         for (int i=0; i < nSimHits; ++i)
         {
             SimTrackerHit * simTrkHit = 
@@ -419,22 +420,37 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             _currentLadder = cellid_decoder( simTrkHit )["module"];
             streamlog_out( DEBUG7 ) << "Processing simHit #" << i << ", from layer=" << _currentLayer << ", module=" << _currentLadder << std::endl;
             streamlog_out (DEBUG6) << "- EDep = " << simTrkHit->getEDep() *dd4hep::GeV / dd4hep::keV << " keV, path length = " << simTrkHit->getPathLength() * 1000. << " um" << std::endl;
-            float mcp_r = std::sqrt(simTrkHit->getPosition()[0]*simTrkHit->getPosition()[0]+simTrkHit->getPosition()[1]*simTrkHit->getPosition()[1]);
-            float mcp_phi = std::atan(simTrkHit->getPosition()[1]/simTrkHit->getPosition()[0]);
-            float mcp_theta = simTrkHit->getPosition()[2] == 0 ? 3.1416/2 : std::atan(mcp_r/simTrkHit->getPosition()[2]);
+            float sim_r = std::sqrt(simTrkHit->getPosition()[0]*simTrkHit->getPosition()[0]+simTrkHit->getPosition()[1]*simTrkHit->getPosition()[1]);
+            float sim_phi = std::atan(simTrkHit->getPosition()[1]/simTrkHit->getPosition()[0]);
+            float sim_theta = simTrkHit->getPosition()[2] == 0 ? 3.1416/2 : std::atan(sim_r/simTrkHit->getPosition()[2]);
             streamlog_out (DEBUG6) << "- Position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
-            streamlog_out (DEBUG6) << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi << ", " << mcp_theta << std::endl;
+            streamlog_out (DEBUG6) << "- Position r(mm),phi,theta = " << sim_r << ", " << sim_phi << ", " << sim_theta << std::endl;
             streamlog_out (DEBUG6) << "- MC particle pdg = ";
             EVENT::MCParticle *mcp = simTrkHit->getMCParticle();
             if (mcp) {
                 streamlog_out (DEBUG6) << simTrkHit->getMCParticle()->getPDG();
-            } else {
+                if ( streamlog_level(DEBUG6) ) {
+                    double deltaZ = std::fabs(simTrkHit->getPosition()[2] - mcp->getVertex()[2]);
+                    double deltaX = simTrkHit->getPosition()[0] - mcp->getVertex()[0];
+                    double deltaY = simTrkHit->getPosition()[1] - mcp->getVertex()[1];
+                    double deltaR = std::sqrt(deltaX*deltaX + deltaY*deltaY);
+                    double incidentTheta = std::atan2(deltaR, deltaZ);
+                    double p = std::sqrt(std::pow(simTrkHit->getMomentum()[0], 2) + std::pow(simTrkHit->getMomentum()[1], 2) + std::pow(simTrkHit->getMomentum()[2], 2));
+                    double mass = mcp->getMass();
+                    streamlog_out (DEBUG6) << "delta r: " << deltaR << std::endl;
+                    streamlog_out (DEBUG6) << "delta z: " << deltaZ << std::endl;
+                    streamlog_out (DEBUG6) << "incident theta: " << incidentTheta << " radians or " << incidentTheta*(180/M_PI) << " degrees" << std::endl;
+                    streamlog_out (DEBUG6) << "beta: " << p / std::sqrt(p*p + mass*mass) << std::endl;
+                }
+            }
+            else{
                 streamlog_out (DEBUG6) << " N.A.";
             }
             streamlog_out (DEBUG6) << std::endl;
             streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
             streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
             streamlog_out (DEBUG6) << "- Quality = " << simTrkHit->getQuality() << std::endl;
+
             ProduceIonisationPoints( simTrkHit );       
             if (_currentLayer == -1)
               continue;
@@ -593,7 +609,6 @@ void MuonCVXDDigitiser::check(LCEvent *evt)
 void MuonCVXDDigitiser::end()
 {
     streamlog_out(DEBUG) << "   end called  " << std::endl;
-    delete _fluctuate;
 }
 /** Function calculates local coordinates of the sim hit 
  * in the given ladder and local momentum of particle. 

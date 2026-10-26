@@ -107,6 +107,7 @@ public:
     virtual Processor*  newProcessor() { return new MuonCVXDDigitiser ; }
 
     MuonCVXDDigitiser();
+    ~MuonCVXDDigitiser();
 
     /** Called at the begin of the job before anything is read.
     * Use to initialize the processor, e.g. book histograms.
@@ -134,10 +135,10 @@ protected:
     int _debug;
     int _totEntries;
     std::string _subDetName;
-    bool isBarrel;
-    bool isVertex;
-    bool isInnerTracker;
-    bool isOuterTracker;
+    bool isBarrel{false};
+    bool isVertex{false};
+    bool isInnerTracker{false};
+    bool isOuterTracker{false};
 
     // input/output collections
     std::string _colName;
@@ -172,8 +173,6 @@ protected:
     int _electronicEffects;
     int _produceFullPattern;
     std::vector<int> _layerIDs;
-  
-    MyG4UniversalFluctuationForSi *_fluctuate;
 
     // charge discretization
     std::vector<double> _DigitizedBins{};
@@ -213,6 +212,7 @@ protected:
     double _currentExitPoint[3];
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
+    MyG4UniversalFluctuationForSi *_fluctuate;
 
     /* Charge digitization helpers */
     void ProduceIonisationPoints(SimTrackerHit *hit);
