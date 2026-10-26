@@ -1,7 +1,8 @@
 # Tests
 
 Regression tests of `MuonCVXDDigitiser` in Marlin, run with `ctest` in an environment with Marlin,
-LCIO and DD4hep (e.g. `ghcr.io/muoncollidersoft/mucoll-sim-ubuntu24:v2.11`) and `K4GEO` set:
+LCIO and DD4hep and `K4GEO` set: the Key4hep stack (as in CI), or e.g.
+`ghcr.io/muoncollidersoft/mucoll-sim-ubuntu24:v2.11`:
 
 ```bash
 cmake -S . -B build && cmake --build build -j8
@@ -37,6 +38,9 @@ the job terminates, which would hide failures.
 - **References** (`reference/*.json`, `check_<name>`): summary statistics per sub-detector with
   tolerances of a few percent, so they hold on any platform. Coarse: small changes can stay within
   the tolerances.
+CI (`.github/workflows/key4hep-build.yaml`) builds with `-Werror` and runs the tests against the
+Key4hep release (required) and nightlies (reported, not blocking), from CVMFS.
+
 - **Comparison with the base branch** (CI, `compare_to_base.sh`): on a pull request, CI also builds
   the base branch and compares the outputs hit by hit. Any difference fails the job unless the pull
   request has the `changes-output` label. The tables are in the job summary.
