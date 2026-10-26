@@ -298,7 +298,6 @@ void MuonCVXDDigitiser::LoadGeometry()
       for(ZPlanarData::LayerLayout z_layout : barrelLayers)
 	{
 	  // ALE: Geometry is in cm, convert all lenght in mm
-	  // ALE: Geometry is in cm, convert all length to mm
 	  _laddersInLayer[curr_layer] = z_layout.ladderNumber;
 	  _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
 	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
@@ -655,11 +654,9 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);
     localPosition[2] = ( dd4hep::mm * oldPos - dd4hep::cm * origin ).dot( surf->normal() ) / dd4hep::mm;
     // Prefer the momentum recorded at the hit: that is the direction inside the sensor, with
-    // everything upstream (bending, scattering, energy loss) already folded in. The MC
-    // particle's momentum is taken at its production vertex, which in a solenoid can point
-    // somewhere else entirely -- in a muon-gun sample the two differ by 3.5 deg at the median
-    // but by more than 65 deg for a quarter of the hits. Fall back to the MC particle only
-    // when the hit carries no momentum, as not every producer fills it.
+    // everything upstream (bending, scattering, energy loss) already folded in.
+    // Fall back to the MC particle only when the hit carries no momentum, as not every
+    // producer fills it.
     double Momentum[3];
     EVENT::MCParticle *mcp = hit->getMCParticle();
     const float* hitMomentum = hit->getMomentum();
