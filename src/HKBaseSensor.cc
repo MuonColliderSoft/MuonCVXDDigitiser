@@ -87,7 +87,7 @@ void ClusterHeap::SetupPixel(int pos_x, int pos_y, PixelData pix)
         c_item.buffer.pixels.push_back(c_pix);
         c_item.buffer.time = pix.time;
 
-        if (c_item.buffer.pixels.size() == c_item.size)
+        if (static_cast<int>(c_item.buffer.pixels.size()) == c_item.size)
         {
             ready_to_pop.push_back(cluster_id);
         }
@@ -273,6 +273,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                     0., 0., 0.,
                     c_item.time,
                     bf_encoder.lowWord(),
+                    0,
                     {}
                 };
 

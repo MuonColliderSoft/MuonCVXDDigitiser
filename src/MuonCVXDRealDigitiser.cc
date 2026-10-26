@@ -318,7 +318,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
         streamlog_out( DEBUG9 ) << "Processing collection " << _colName  << " with "
                                 <<  STHcol->getNumberOfElements()  << " hits ... " << std::endl ;
     }
-    catch( lcio::DataNotAvailableException ex )
+    catch( const lcio::DataNotAvailableException& )
     {
         streamlog_out(ERROR) << _colName << " collection not available" << std::endl;
         STHcol = nullptr;

@@ -37,8 +37,8 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     _nRun(0),
     _nEvt(0),
     _totEntries(0),
-    _currentLayer(0),
-    _map(nullptr)
+    _map(nullptr),
+    _currentLayer(0)
 {
     _description = "MuonCVXDDigitiser should create VTX TrackerHits from SimTrackerHits";
     registerInputCollection(LCIO::SIMTRACKERHIT,
@@ -355,7 +355,7 @@ void MuonCVXDDigitiser::LoadGeometry()
         streamlog_out(DEBUG5) << "Subdetector is: " << _subDetName << std::endl;
         float shift = 500.; // first bin
         float scalefactor = 2.; 
-        for (int i = 0; i < _DigitizedBins.size(); i++){
+        for (int i = 0; i < (int)_DigitizedBins.size(); i++){
             _DigitizedBins[i] = (_DigitizedBins[i] - _DigitizedBins[0]) * scalefactor + shift;
         }
     }

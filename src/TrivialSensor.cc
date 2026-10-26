@@ -183,6 +183,7 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
                     0., 0., 0.,
                     init_time + clock_cnt * clock_step,
                     bf_encoder.lowWord(),
+                    0,
                     {}
                 };
                 for (GridCoordinate gcoor : c_item)
