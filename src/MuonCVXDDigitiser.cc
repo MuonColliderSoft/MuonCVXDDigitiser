@@ -528,6 +528,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                    double pixelPos[3];
                    pixelPos[0] = localPos[0] / _pixelSizeX;
                    pixelPos[1] = localPos[1] / _pixelSizeY;
+                   pixelPos[2] = 0.; // the pixel position is in the sensor plane
                    newsth->setPosition(pixelPos);
                    newsth->setEDep(charge); // in unit of electrons
                    newsth->setTime(sth->getTime());
@@ -1039,7 +1040,9 @@ void MuonCVXDDigitiser::TimeDigitizer(SimTrackerHitImplVec &simTrkVec)
 {
     streamlog_out (DEBUG6) << "Time discretization" << std::endl;
   
-    static const int numBins = pow(2, _TimeDigitizeNumBits)-1;
+    // Not static: each instance of the processor has its own TimeDigitizeNumBits and TimeMaximum
+    const int numBins = pow(2, _TimeDigitizeNumBits)-1;
+    const float binWidth = _timeMax/numBins;
     double discTime;
     for (int i = 0; i < (int)simTrkVec.size(); ++i)
     {
@@ -1049,7 +1052,6 @@ void MuonCVXDDigitiser::TimeDigitizer(SimTrackerHitImplVec &simTrkVec)
      
         switch(_TimeDigitizeBinning) {
         case 0: // uniform binning
-	        static const float binWidth = _timeMax/numBins;
 	        if (origTime < binWidth) discTime = binWidth/2;
 	        else if (origTime > _timeMax) discTime = _timeMax - binWidth/2;
             else discTime = ((ceil((origTime-binWidth)/binWidth)*binWidth)*2+binWidth)/2;
