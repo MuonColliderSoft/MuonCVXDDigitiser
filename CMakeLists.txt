@@ -90,6 +90,13 @@ ADD_SHARED_LIBRARY( MuonCVXDRealDigitiser   src/DetElemSlidingWindow.cc
                                             src/PixelDigiMatrix.cc)
 INSTALL_SHARED_LIBRARY( MuonCVXDRealDigitiser DESTINATION ${PACKAGE_INSTALL_LIB_DIR} )
 
+### TESTS ###################################################################
+
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(test)
+endif()
+
 # display some variables and write them to cache
 DISPLAY_STD_VARIABLES()
 

@@ -1,0 +1,77 @@
+{
+ "events": 5,
+ "subdetectors": {
+  "ITBarrel": {
+   "efficiency": 0.9791666666666666,
+   "empty_clusters": 0,
+   "far_from_sim": 0,
+   "hits": 141,
+   "mean_charge_keV": 47.075563540105485,
+   "mean_pixels": 6.056737588652482,
+   "median_residual_um": 9.221226175210424,
+   "non_finite": 0,
+   "non_positive_charge": 0,
+   "time_rms_ps": 2.8842637568130725
+  },
+  "ITEndcap": {
+   "efficiency": 0.9777777777777777,
+   "empty_clusters": 0,
+   "far_from_sim": 0,
+   "hits": 88,
+   "mean_charge_keV": 41.244450502827846,
+   "mean_pixels": 5.056818181818182,
+   "median_residual_um": 7.339663892455984,
+   "non_finite": 0,
+   "non_positive_charge": 0,
+   "time_rms_ps": 2.8328243757704463
+  },
+  "OTBarrel": {
+   "efficiency": 0.9663865546218487,
+   "empty_clusters": 0,
+   "far_from_sim": 0,
+   "hits": 115,
+   "mean_charge_keV": 44.350271017047696,
+   "mean_pixels": 5.51304347826087,
+   "median_residual_um": 7.703000798372875,
+   "non_finite": 0,
+   "non_positive_charge": 0,
+   "time_rms_ps": 2.656472348732493
+  },
+  "OTEndcap": {
+   "efficiency": 0.92,
+   "empty_clusters": 0,
+   "far_from_sim": 0,
+   "hits": 46,
+   "mean_charge_keV": 39.487606282700256,
+   "mean_pixels": 5.391304347826087,
+   "median_residual_um": 5.673677879517338,
+   "non_finite": 0,
+   "non_positive_charge": 0,
+   "time_rms_ps": 430.9953681742641
+  },
+  "VXDBarrel": {
+   "efficiency": 0.9896373056994818,
+   "empty_clusters": 0,
+   "far_from_sim": 0,
+   "hits": 191,
+   "mean_charge_keV": 24.235956502064433,
+   "mean_pixels": 3.0418848167539267,
+   "median_residual_um": 5.412936401371471,
+   "non_finite": 0,
+   "non_positive_charge": 0,
+   "time_rms_ps": 2.779251737334537
+  },
+  "VXDEndcap": {
+   "efficiency": 0.9508196721311475,
+   "empty_clusters": 0,
+   "far_from_sim": 0,
+   "hits": 116,
+   "mean_charge_keV": 25.450537001578876,
+   "mean_pixels": 3.086206896551724,
+   "median_residual_um": 5.723616547275712,
+   "non_finite": 0,
+   "non_positive_charge": 0,
+   "time_rms_ps": 2.8948072842013546
+  }
+ }
+}

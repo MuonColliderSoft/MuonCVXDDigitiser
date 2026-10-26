@@ -176,17 +176,17 @@ void DetElemSlidingWindow::UpdatePixels()
                 double yCurrent = _sensor.PixelColToY(iy);
                 
                 gsl_sf_result result;
-                int status = gsl_sf_erf_Q_e((xCurrent - 0.5 * _sensor.GetPixelSizeX() - spoint.x) / spoint.sigmaX, &result);
+                gsl_sf_erf_Q_e((xCurrent - 0.5 * _sensor.GetPixelSizeX() - spoint.x) / spoint.sigmaX, &result);
                 double LowerBound = 1 - result.val;
 
-                status = gsl_sf_erf_Q_e((xCurrent + 0.5 * _sensor.GetPixelSizeX() - spoint.x) / spoint.sigmaX, &result);
+                gsl_sf_erf_Q_e((xCurrent + 0.5 * _sensor.GetPixelSizeX() - spoint.x) / spoint.sigmaX, &result);
                 double UpperBound = 1 - result.val;
                 double integralX = UpperBound - LowerBound;
 
-                status = gsl_sf_erf_Q_e((yCurrent - 0.5 * _sensor.GetPixelSizeY() - spoint.y) / spoint.sigmaY, &result);
+                gsl_sf_erf_Q_e((yCurrent - 0.5 * _sensor.GetPixelSizeY() - spoint.y) / spoint.sigmaY, &result);
                 LowerBound = 1 - result.val;
 
-                status = gsl_sf_erf_Q_e((yCurrent + 0.5 * _sensor.GetPixelSizeY() - spoint.y) / spoint.sigmaY, &result);
+                gsl_sf_erf_Q_e((yCurrent + 0.5 * _sensor.GetPixelSizeY() - spoint.y) / spoint.sigmaY, &result);
                 UpperBound = 1 - result.val;
                 double integralY = UpperBound - LowerBound;
 
