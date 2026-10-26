@@ -10,6 +10,11 @@ set(MUONCVXD_TEST_DATA_URL
     CACHE STRING "Where the test samples are downloaded from")
 set(MUONCVXD_TEST_DATA_DIR "" CACHE PATH "Local folder with the test samples, used instead of downloading them")
 
+# Unit test of the choice of the charge digitization bins, which needs no geometry
+add_executable(test_charge_bins test_charge_bins.cpp ${PROJECT_SOURCE_DIR}/src/ChargeDigitizationBins.cc)
+target_include_directories(test_charge_bins PRIVATE ${PROJECT_SOURCE_DIR}/include)
+add_test(NAME test_charge_bins COMMAND test_charge_bins)
+
 if(NOT DEFINED ENV{K4GEO})
   message(WARNING "K4GEO is not set: the MuonCVXDDigitiser tests need the MAIA_v0 geometry and are disabled")
   return()
@@ -39,18 +44,19 @@ function(add_digi_run name config sample)
 endfunction()
 
 # digi_<name> as above, then check_<name>: sanity requirements, and agreement with
-# reference/<name>.json.
+# reference/<name>.json. Arguments after CHECK_ARGS are passed to check_hits.py.
 function(add_digi_test name config sample)
-  add_digi_run(${name} ${config} ${sample} ${ARGN})
+  cmake_parse_arguments(PARSE_ARGV 3 arg "" "" "CHECK_ARGS")
+  add_digi_run(${name} ${config} ${sample} ${arg_UNPARSED_ARGUMENTS})
 
   add_test(NAME check_${name}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_hits.py ${out_dir}/${name}.csv
-            --reference ${reference_dir}/${name}.json)
+            --reference ${reference_dir}/${name}.json ${arg_CHECK_ARGS})
   set_tests_properties(check_${name} PROPERTIES FIXTURES_REQUIRED Digi_${name})
 
   set(reference_commands ${reference_commands}
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_hits.py ${out_dir}/${name}.csv
-              --write-reference ${reference_dir}/${name}.json
+              --write-reference ${reference_dir}/${name}.json ${arg_CHECK_ARGS}
       PARENT_SCOPE)
 endfunction()
 
@@ -72,6 +78,15 @@ add_digi_test(nosmear_nodetail nosmear mu_gun_nodetail)
 # Same configuration twice: the output must be reproducible
 add_digi_run(nosmear_repeat nosmear mu_gun_detailed)
 add_compare_test(reproducible nosmear nosmear_repeat --expect identical)
+
+# Charge digitization with the 3-bit table and with uniform binning
+add_digi_test(bits3 bits3 mu_gun_detailed)
+add_digi_test(uniform uniform mu_gun_detailed)
+
+# A layer missing from LayerIDs: its hits are skipped, the other layers are digitised as usual.
+# The last vertex-barrel layer (cell ID layer 6) is left out, so the others keep their geometry.
+add_digi_test(skip_layer nosmear mu_gun_detailed --subdet VXDBarrel "--set=VXDBarrel.LayerIDs=0 1 2 4"
+              CHECK_ARGS --layers VXDBarrel=0,1,2,4)
 
 # Regenerate every reference from the outputs of the last ctest run:
 #   ctest && cmake --build . --target update_test_references

@@ -1,4 +1,5 @@
 #include "MuonCVXDDigitiser.h"
+#include "ChargeDigitizationBins.h"
 
 #include <iostream>
 #include <algorithm>
@@ -308,37 +309,12 @@ void MuonCVXDDigitiser::LoadGeometry()
 
     PrintGeometryInfo();
 
-    // Bins for charge discretization
-    // FIXME: Will move to assign more dynamically 
-    std::vector<double> genericBins;
-    if (_ChargeDigitizeNumBits == 3) genericBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
-    if (_ChargeDigitizeNumBits == 4) genericBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756};
-    if (_ChargeDigitizeNumBits == 5) genericBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
-    if (_ChargeDigitizeNumBits == 6) genericBins = {500, 542, 572, 601, 629, 661, 692, 721, 750, 779, 812, 842, 877, 913, 946, 981, 1016, 1051, 1087, 1121, 1161, 1196, 1237, 1275, 1313, 1350, 1391, 1431, 1468, 1514, 1560, 1606, 1646, 1687, 1733, 1777, 1821, 1872, 1920, 1976, 2036, 2091, 2145, 2213, 2272, 2337, 2411, 2488, 2573, 2651, 2739, 2834, 2938, 3053, 3194, 3356, 3532, 3764, 4034, 4379, 4907, 5698, 6957, 9636};
-    if (_ChargeDigitizeNumBits == 8) genericBins = {500, 511, 523, 533, 542, 550, 556, 564, 570, 577, 585, 592, 598, 603, 610, 617, 624, 630, 638, 646, 654, 661, 668, 676, 684, 691, 699, 705, 712, 719, 724, 731, 738, 745, 752, 760, 767, 772, 780, 787, 795, 802, 810, 818, 826, 832, 839, 847, 856, 865, 874, 881, 889, 898, 906, 916, 924, 930, 938, 945, 955, 965, 971, 978, 986, 995, 1004, 1012, 1019, 1027, 1036, 1044, 1053, 1062, 1071, 1079, 1088, 1096, 1104, 1112, 1121, 1131, 1139, 1149, 1158, 1168, 1175, 1184, 1193, 1203, 1211, 1221, 1233, 1241, 1249, 1259, 1268, 1277, 1286, 1294, 1303, 1313, 1321, 1330, 1338, 1348, 1357, 1368, 1378, 1387, 1395, 1406, 1417, 1426, 1434, 1445, 1452, 1460, 1470, 1480, 1492, 1503, 1514, 1525, 1536, 1550, 1560, 1570, 1580, 1592, 1604, 1614, 1623, 1634, 1644, 1653, 1662, 1673, 1684, 1695, 1707, 1717, 1727, 1737, 1747, 1759, 1769, 1780, 1790, 1800, 1812, 1823, 1835, 1846, 1860, 1873, 1885, 1897, 1907, 1918, 1931, 1943, 1958, 1971, 1987, 2000, 2014, 2026, 2041, 2056, 2068, 2080, 2095, 2108, 2119, 2131, 2147, 2162, 2180, 2195, 2213, 2224, 2238, 2256, 2269, 2284, 2300, 2314, 2332, 2351, 2366, 2383, 2401, 2421, 2440, 2458, 2475, 2496, 2519, 2538, 2559, 2581, 2601, 2618, 2636, 2658, 2681, 2703, 2722, 2742, 2767, 2791, 2811, 2836, 2857, 2884, 2913, 2938, 2967, 2995, 3023, 3052, 3086, 3119, 3153, 3188, 3221, 3270, 3304, 3342, 3390, 3428, 3473, 3515, 3556, 3611, 3691, 3742, 3801, 3857, 3928, 3999, 4069, 4141, 4220, 4325, 4417, 4518, 4655, 4789, 4965, 5141, 5359, 5548, 5770, 6017, 6311, 6584, 7024, 7492, 8060, 8740, 9738, 11450, 14878, 23973};
-
-    // Dedicated 4-bit tables for the vertex detector (barrel and endcap), keyed on the
-    // sensor thickness in microns. Keyed on a rounded integer because _layerThickness is
-    // float and would never compare equal to a double literal.
-    const std::map<int, std::vector<double>> vertexBins4bit = {
-        {50, {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}},
-        {75, {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}},
-        {100, {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}},
-        {200, {500, 720, 1037, 1494, 2152, 3099, 4463, 6428, 9258, 13334, 19205, 27660, 39838, 57378, 82640, 119024}},
-        {400, {500, 754, 1138, 1716, 2588, 3904, 5889, 8883, 13399, 20211, 30486, 45985, 69363, 104626, 157816, 238048}},
-    };
-
-    // One table per layer: LoadGeometry() runs before any hit is read, so _currentLayer
-    // is not usable here and the choice has to be made for every layer up front.
-    _DigitizedBins.assign(_numberOfLayers, genericBins);
+    // Bins for charge discretization, one table per layer: LoadGeometry() runs before any
+    // hit is read, so the choice has to be made for every layer up front
+    _DigitizedBins.resize(_numberOfLayers);
     for (int i = 0; i < _numberOfLayers; ++i)
     {
-        int thickness_um = (int)std::lround(_layerThickness[i] * 1000.);
-        if (_ChargeDigitizeNumBits == 4 && isVertex)
-        {
-            auto it = vertexBins4bit.find(thickness_um);
-            if (it != vertexBins4bit.end()) _DigitizedBins[i] = it->second;
-        }
+        _DigitizedBins[i] = chargeDigitizationBins(_ChargeDigitizeNumBits, isVertex, _layerThickness[i]);
         if (_DigitizedBins[i].empty())
         {
             streamlog_out(WARNING) << "No charge digitization bins defined for "
@@ -346,22 +322,9 @@ void MuonCVXDDigitiser::LoadGeometry()
                                    << " for layer " << i << std::endl;
             continue;
         }
-        streamlog_out(DEBUG5) << "Layer " << i << ": sensor thickness " << thickness_um
-                              << " um, " << _DigitizedBins[i].size() << " charge bins, first/last = "
+        streamlog_out(DEBUG5) << "Layer " << i << ": sensor thickness " << _layerThickness[i]
+                              << " mm, " << _DigitizedBins[i].size() << " charge bins, first/last = "
                               << _DigitizedBins[i].front() << "/" << _DigitizedBins[i].back() << std::endl;
-    }
-
-    // shift digitized bins for inner and outer tracker by factor of 2
-    // this adjusts for the fact that the resolution is 2x worse for inner and outer tracker
-    if (!isVertex) {
-        streamlog_out(DEBUG5) << "Subdetector is: " << _subDetName << std::endl;
-        float shift = 500.; // first bin
-        float scalefactor = 2.; 
-        for (auto& bins : _DigitizedBins) {
-            for (int i = 0; i < (int)bins.size(); i++){
-                bins[i] = (bins[i] - bins[0]) * scalefactor + shift;
-            }
-        }
     }
 } 
 

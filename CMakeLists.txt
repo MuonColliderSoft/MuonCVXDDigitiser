@@ -71,6 +71,7 @@ INCLUDE_DIRECTORIES( ./include )
 
 # add library
 ADD_SHARED_LIBRARY( ${PROJECT_NAME} src/MuonCVXDDigitiser.cc
+                                    src/ChargeDigitizationBins.cc
                                     src/MyG4UniversalFluctuationForSi.cc)
 INSTALL_SHARED_LIBRARY( ${PROJECT_NAME} DESTINATION ${PACKAGE_INSTALL_LIB_DIR} )
 

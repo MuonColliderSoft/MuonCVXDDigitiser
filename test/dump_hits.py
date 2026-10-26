@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Dump the reconstructed hits of MuonCVXDDigitiser, with their SimTrackerHit and fired pixels, to CSV.
 
-Also writes <hits.csv>.json with the number of events and of SimTrackerHits per sub-detector.
+Also writes <hits.csv>.json with the number of events and of SimTrackerHits per sub-detector
+and per layer.
 
 Usage: dump_hits.py <digi.slcio> <hits.csv>
 """
@@ -13,7 +14,7 @@ import sys
 from pyLCIO import IOIMPL
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from digi_common import HIT_COLUMNS, SUBDETECTORS, pixel_string  # noqa: E402
+from digi_common import HIT_COLUMNS, SUBDETECTORS, layer_of, pixel_string  # noqa: E402
 
 
 def cellid(hit):
@@ -27,6 +28,7 @@ def vec3(v):
 
 input_file, output_file = sys.argv[1:3]
 nsim = {prefix: 0 for prefix, *_ in SUBDETECTORS}
+nsim_by_layer = {prefix: {} for prefix, *_ in SUBDETECTORS}
 nevents = 0
 reader = IOIMPL.LCFactory.getInstance().createLCReader()
 reader.open(input_file)
@@ -40,7 +42,11 @@ with open(output_file, "w", newline="") as f:
             if prefix + "HitsRelations" not in names:
                 continue
             if sim_collection in names:
-                nsim[prefix] += event.getCollection(sim_collection).getNumberOfElements()
+                sim_hits = event.getCollection(sim_collection)
+                nsim[prefix] += sim_hits.getNumberOfElements()
+                for k in range(sim_hits.getNumberOfElements()):
+                    layer = str(layer_of(sim_hits.getElementAt(k).getCellID0() & 0xffffffff))
+                    nsim_by_layer[prefix][layer] = nsim_by_layer[prefix].get(layer, 0) + 1
             pixels = event.getCollection(pixel_collection) if pixel_collection in names else None
             relations = event.getCollection(prefix + "HitsRelations")
             ipix = 0
@@ -61,4 +67,5 @@ with open(output_file, "w", newline="") as f:
 reader.close()
 
 with open(output_file + ".json", "w") as f:
-    json.dump({"events": nevents, "nsim": {k: v for k, v in nsim.items() if v}}, f, indent=1)
+    json.dump({"events": nevents, "nsim": {k: v for k, v in nsim.items() if v},
+               "nsim_by_layer": {k: v for k, v in nsim_by_layer.items() if v}}, f, indent=1)
