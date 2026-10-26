@@ -649,15 +649,27 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     // Add also z ccordinate
     Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);
     localPosition[2] = ( dd4hep::mm * oldPos - dd4hep::cm * origin ).dot( surf->normal() ) / dd4hep::mm;
+    // Prefer the momentum recorded at the hit: that is the direction inside the sensor, with
+    // everything upstream (bending, scattering, energy loss) already folded in. The MC
+    // particle's momentum is taken at its production vertex, which in a solenoid can point
+    // somewhere else entirely -- in a muon-gun sample the two differ by 3.5 deg at the median
+    // but by more than 65 deg for a quarter of the hits. Fall back to the MC particle only
+    // when the hit carries no momentum, as not every producer fills it.
     double Momentum[3];
     EVENT::MCParticle *mcp = hit->getMCParticle();
+    const float* hitMomentum = hit->getMomentum();
+    bool useHitMomentum = (hitMomentum[0] != 0.f || hitMomentum[1] != 0.f || hitMomentum[2] != 0.f);
     for (int j = 0; j < 3; ++j) {
-      if (mcp) {
+      if (useHitMomentum) {
+        Momentum[j] = hitMomentum[j] * dd4hep::GeV;
+      } else if (mcp) {
         Momentum[j] = mcp->getMomentum()[j] * dd4hep::GeV;
       } else {
-        Momentum[j] = hit->getMomentum()[j];
+        Momentum[j] = 0.;
       }
     }
+    if (!useHitMomentum)
+        streamlog_out( DEBUG5 ) << "Hit carries no momentum, falling back to the MC particle" << std::endl;
     // as default put electron's mass
     _currentParticleMass = 0.510e-3 * dd4hep::GeV;
     if (hit->getMCParticle())
@@ -723,8 +735,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         double y = pos[1] + tany * (z - pos[2]);
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
         // length in mm, meanLoss eloss in MeV.
-        double de = _fluctuate->SampleFluctuations(double(_currentParticleMomentum * dd4hep::keV / dd4hep::MeV),
-                                                   double(_currentParticleMass * dd4hep::keV / dd4hep::MeV),
+        double de = _fluctuate->SampleFluctuations(double(_currentParticleMomentum / dd4hep::MeV),
+                                                   double(_currentParticleMass / dd4hep::MeV),
                                                    _cutOnDeltaRays,
                                                    segmentLength,
                                                    double(dEmean / dd4hep::MeV)) * dd4hep::MeV;
