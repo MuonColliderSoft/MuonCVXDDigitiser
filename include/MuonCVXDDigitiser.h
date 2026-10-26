@@ -97,9 +97,6 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 100) <br>
   * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
  * (default parameter value : 10) <br> 
- * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
- * vertex barrel, reproducing the geometry-derived behaviour), 0 = off, 1 = on <br>
- * (default parameter value : -1) <br>
  * <br>
  */
 class MuonCVXDDigitiser : public Processor
@@ -181,27 +178,12 @@ protected:
     
     // geometry
     int _numberOfLayers;
-    std::vector<int>   _laddersInLayer{};
-    int _zSegmented;
-    std::vector<int>   _sensorsPerLadder{};
-    std::vector<float> _layerRadius{};
     std::vector<float> _layerThickness{};
     std::vector<float> _layerHalfThickness{};
-    std::vector<float> _layerLadderLength{};
-    std::vector<float> _layerLadderHalfWidth{};
-    std::vector<float> _layerPhiOffset{};
-    std::vector<float> _layerActiveSiOffset{};
-    std::vector<float> _layerHalfPhi{};
-    std::vector<float> _layerLadderWidth{};
-    // endcap specific
-    std::vector<float> _layerPetalLength{};
-    std::vector<float> _petalsInLayer{};
-    std::vector<float> _layerPetalInnerWidth{};
-    std::vector<float> _layerPetalOuterWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
     // Half-lengths along u and v (mm) of the sensitive area of each sensor, by cell ID.
     // The pixel matrix covers the sensor the hit is on: the ladder and petal dimensions
-    // above are per layer and do not match all the sensors (e.g. tracker endcap modules).
+    // of the layer do not match all the sensors (e.g. tracker endcap modules).
     std::unordered_map<unsigned long, std::pair<double, double>> _sensorHalfLengths{};
 
     // internal state
@@ -212,12 +194,9 @@ protected:
     int _numberOfSegments;
     double _currentParticleMass;
     double _currentParticleMomentum;
-    double _currentPhi;
     double _eSum;
     double _segmentDepth;
     double _currentLocalPosition[3];
-    double _currentEntryPoint[3];
-    double _currentExitPoint[3];
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
     MyG4UniversalFluctuationForSi *_fluctuate;

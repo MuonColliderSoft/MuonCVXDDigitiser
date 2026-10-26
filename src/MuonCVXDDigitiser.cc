@@ -218,10 +218,6 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "ID of layers of subdetector",
                                _layerIDs,
                                {});
-    registerProcessorParameter("ZSegmented",
-                               "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on.",
-                               _zSegmented,
-                               -1);
 }
 void MuonCVXDDigitiser::init()
 { 
@@ -308,78 +304,14 @@ void MuonCVXDDigitiser::LoadGeometry()
     _sensorHalfLengths.reserve(_map->size());
     for (const auto& [cellID, surface] : *_map)
       _sensorHalfLengths.emplace(cellID, sensorHalfLengths(*surface));
-    // Resolve the ZSegmented tri-state. Auto (< 0) reproduces the geometry-derived
-    // behaviour: only the vertex barrel is segmented along z.
-    bool zSegmented = (_zSegmented < 0) ? (isVertex && isBarrel) : (_zSegmented > 0 && isBarrel);
-    streamlog_out(DEBUG5) << "Z-segmentation " << (zSegmented ? "enabled" : "disabled")
-                          << " (ZSegmented=" << _zSegmented << ")" << std::endl;
-
-    _laddersInLayer.resize(_numberOfLayers);
-    if(zSegmented)
-      _sensorsPerLadder.resize(_numberOfLayers);
-    _layerHalfPhi.resize(_numberOfLayers);
-    _layerHalfThickness.resize(_numberOfLayers);
+    // Sensor thickness of each layer, converted from cm to mm
     _layerThickness.resize(_numberOfLayers);
-    _layerRadius.resize(_numberOfLayers);
-    _layerLadderLength.resize(_numberOfLayers);
-    _layerLadderWidth.resize(_numberOfLayers);
-    _layerLadderHalfWidth.resize(_numberOfLayers);
-    _layerActiveSiOffset.resize(_numberOfLayers);
-    _layerPhiOffset.resize(_numberOfLayers);
-    _petalsInLayer.resize(_numberOfLayers);
-    _layerPetalLength.resize(_numberOfLayers);
-    _layerPetalInnerWidth.resize(_numberOfLayers);
-    _layerPetalOuterWidth.resize(_numberOfLayers);
-    int curr_layer = 0;
-    if (isBarrel) {
-      for(ZPlanarData::LayerLayout z_layout : barrelLayers)
-	{
-	  // ALE: Geometry is in cm, convert all lenght in mm
-	  _laddersInLayer[curr_layer] = z_layout.ladderNumber;
-	  _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
-	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
-	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
-	  _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
-	  if(zSegmented){ //Zsegmented layers
-	    _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
-	    _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
-          }
-          else
-            _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
-          if ((isInnerTracker==1 || isOuterTracker==1) && z_layout.lengthSensor==0) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive * dd4hep::cm / dd4hep::mm;}
-	  _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;	  
-	  _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
-	  _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
-	  _layerPhiOffset[curr_layer] = z_layout.phi0;
-	  
-	  curr_layer++;
-	}
-    } else {
-      // TODO.. fill info necessary for endcap
-      for (ZDiskPetalsData::LayerLayout z_layout : endcapLayers)
-	{
-	  // see /opt/ilcsoft/muonc/lcgeo/v00-18-01-MC/detector/tracker/VertexEndcap_o1_v06_geo.cpp, L144+
-	  // for how the endcap (VXD) geometry is built
-	  // Note: petal-like structure but current geometry only defines a single sensitive element for the whole disk afaics.
-	  // The structure is defined in /opt/ilcsoft/muonc/DD4hep/v01-25-01/DDRec/include/DDRec/DetectorData.h
-
-	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
-	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
-
-	  _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
-
-	  _layerPetalInnerWidth[curr_layer] = z_layout.widthInnerSensitive * dd4hep::cm / dd4hep::mm ;
-      _layerPetalOuterWidth[curr_layer] = z_layout.widthOuterSensitive * dd4hep::cm / dd4hep::mm ;
-      _petalsInLayer[curr_layer] = z_layout.petalNumber;
-      if (_layerPetalOuterWidth[curr_layer] == 0){
-        float outerEndcapRadius = 112.0 * dd4hep::cm / dd4hep::mm ;// FIX find source
-        _layerPetalOuterWidth[curr_layer] = 2 * outerEndcapRadius * std::tan(M_PI/_petalsInLayer[curr_layer]);
-      }
-	  //_layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
-	  //_layerPhiOffset[curr_layer] = z_layout.phi0;
-	
-	  curr_layer++;
-	}
+    _layerHalfThickness.resize(_numberOfLayers);
+    for (int i = 0; i < _numberOfLayers; ++i)
+    {
+        double thickness = isBarrel ? barrelLayers[i].thicknessSensitive : endcapLayers[i].thicknessSensitive;
+        _layerThickness[i] = thickness * dd4hep::cm / dd4hep::mm;
+        _layerHalfThickness[i] = 0.5 * _layerThickness[i];
     }
 
     PrintGeometryInfo();
@@ -762,9 +694,6 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     localDirection[0] = Momentum * surf->u();
     localDirection[1] = Momentum * surf->v();
     localDirection[2] = Momentum * surf->normal();
-    if (isBarrel){
-    _currentPhi = _currentLadder * 2.0 * _layerHalfPhi[_currentLayer] + _layerPhiOffset[_currentLayer];
-    }
 }
 void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 {
@@ -787,8 +716,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     }
     for (int i = 0; i < 3; ++i) {
         _currentLocalPosition[i] = pos[i];
-        _currentEntryPoint[i] = entry[i];
-        _currentExitPoint[i] = exit[i];
     }
     streamlog_out( DEBUG5 ) << "local position: " << _currentLocalPosition[0] << ", " << _currentLocalPosition[1] << ", " << _currentLocalPosition[2] << std::endl;
     double tanx = dir[0] / dir[2];
@@ -1297,20 +1224,8 @@ void MuonCVXDDigitiser::PrintGeometryInfo()
     for (int i = 0; i < _numberOfLayers; ++i) 
     {
         streamlog_out(MESSAGE) << "Layer " << i << std::endl;
-        streamlog_out(MESSAGE) << "  Number of ladders: " << _laddersInLayer[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Radius: " << _layerRadius[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Ladder length: " << _layerLadderLength[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Ladder width: "<< _layerLadderWidth[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Ladder half width: " << _layerLadderHalfWidth[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Phi offset: " << _layerPhiOffset[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Active Si offset: " << _layerActiveSiOffset[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Half phi: " << _layerHalfPhi[i] << std::endl;
         streamlog_out(MESSAGE) << "  Thickness: " << _layerThickness[i] << std::endl;
         streamlog_out(MESSAGE) << "  Half thickness: " << _layerHalfThickness[i] << std::endl;
-        //TODO: organize which get printed based on barrel/endcap
-        streamlog_out(MESSAGE) << "  Petal length: " << _layerPetalLength[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Petal Inner Width: " << _layerPetalInnerWidth[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Petal Outer Width: " << _layerPetalOuterWidth[i] << std::endl;
     }
 }
 //=============================================================================
