@@ -101,6 +101,9 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * @param TimeSmearingModel time smearing model: 0 = none, 1 = constant sigma taken from
  * TimeSmearingSigma, 2 = realistic resolution derived from the sensor thickness <br>
  * (default parameter value : 1) <br>
+ * @param ResimulateIonisation source of the ionisation trail: 0 = path length and deposited
+ * energy from the Geant4 hit, 1 = re-simulated from the local direction and EnergyLoss <br>
+ * (default parameter value : 0) <br>
  * @param SigmaLandau override for Landau sigma <br>
  * (default parameter value : -1, i.e. use the thickness-derived default) <br>
  * @param SigmaTimewalk override for timewalk sigma <br>
@@ -200,6 +203,7 @@ protected:
     int _timeSmearingModel;
     int _electronicEffects;
     int _produceFullPattern;
+    int _resimulateIonisation;
     std::vector<int> _layerIDs;
 
     // time digitization overrides
