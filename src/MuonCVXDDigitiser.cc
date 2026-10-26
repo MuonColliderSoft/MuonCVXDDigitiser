@@ -15,6 +15,8 @@
 #include "DDRec/DetectorData.h"
 #include "DD4hep/DD4hepUnits.h"
 #include "gsl/gsl_sf_erf.h"
+// Also brings the float overloads of ceil() into the global namespace: the time digitization
+// relies on them, and removing the include changes the digitized times in the last bit
 #include "gsl/gsl_math.h"
 #include "CLHEP/Random/RandGauss.h"
 #include "CLHEP/Random/RandPoisson.h" 
@@ -71,9 +73,6 @@ std::pair<double, double> sensorHalfLengths(const ISurface& surface)
 
 MuonCVXDDigitiser::MuonCVXDDigitiser() :
     Processor("MuonCVXDDigitiser"),
-    _nRun(0),
-    _nEvt(0),
-    _totEntries(0),
     _map(nullptr),
     _currentLayer(0),
     _fluctuate(nullptr)
@@ -236,18 +235,12 @@ void MuonCVXDDigitiser::init()
     // Determine if vertex, inner tracker, or outer tracker
     if (_subDetName.find("Vertex") != std::string::npos) {
       isVertex=true;
-    } else if (_subDetName.find("InnerTracker") != std::string::npos) {
-      isInnerTracker=true;
-    } else if (_subDetName.find("OuterTracker") != std::string::npos) {
-      isOuterTracker=true;
-    } else {
+    } else if (_subDetName.find("InnerTracker") == std::string::npos &&
+               _subDetName.find("OuterTracker") == std::string::npos) {
       std::stringstream err  ; err << " Could not determine sub-detector type for: " << _subDetName;
       throw Exception ( err.str() );
     }
 
-    _nRun = 0 ;
-    _nEvt = 0 ;
-    _totEntries = 0;
     _fluctuate = new MyG4UniversalFluctuationForSi();
 }
 
@@ -260,7 +253,6 @@ MuonCVXDDigitiser::~MuonCVXDDigitiser()
 }
 void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 { 
-    _nRun++ ;
     LoadGeometry() ;
 }
 void MuonCVXDDigitiser::LoadGeometry()
@@ -375,11 +367,9 @@ void MuonCVXDDigitiser::LoadGeometry()
 
 void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 { 
-    //SP. few TODO items:
+    // TODO:
     // - include noisy pixels (calculate rate from gaussian with unit sigma integral x > _electronicNoise / _threshold )
     // - change logic in creating pixels from all SimTrkHits, then cluster them (incl. timing info)
-    // - include threshold dispersion effects
-    // - add digi parametrization for time measurement
     // - change position determination of cluster to analog cluster (w-avg of corner hits)
     if (!_map){
         LoadGeometry() ;
@@ -486,20 +476,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             recoHit->setCellID0( cellid0 );
             recoHit->setCellID1( cellid1 );
             
-            double localPos[3];
-            double localIdx[3];
-            double localDir[3];
-            FindLocalPosition(simTrkHit, localPos, localDir);
-            localIdx[0] = localPos[0] / _pixelSizeX;
-            localIdx[1] = localPos[1] / _pixelSizeY;
-            float incidentPhi = std::atan(localDir[0] / localDir[2]);
-            float incidentTheta = std::atan(localDir[1] / localDir[2]);
-
             // Debug messages to check if reconstruction went correctly
             // true global
             streamlog_out (DEBUG9) << "- TRUE GLOBAL position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
-            // true local (compare two verions)
-            streamlog_out (DEBUG9) << "- TRUE LOCAL position (localPos) (mm) x,y,z,t = " << localPos[0] << ", " << localPos[1] << ", " << localPos[2] << std::endl;
             // reco local 
             streamlog_out (DEBUG9) << "- RECO LOCAL position (mm) x,y,z,t = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << std::endl;
             
@@ -535,12 +514,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             rel->setWeight( 1.0 );
             relCol->addElement(rel);
             streamlog_out (DEBUG7) << "Reconstructed pixel cluster:" << std::endl;
-            streamlog_out (DEBUG7) << "- local position (x,y) = " << localPos[0] << "(Idx: " << localIdx[0] << "), " << localPos[1] << "(Idy: " << localIdx[1] << ")" << std::endl;
-            streamlog_out( DEBUG5 ) << "(reco local) - (true local) (x,y,z): " << localPos[0] - _currentLocalPosition[0] << ", " << localPos[1] - _currentLocalPosition[1] << ", " << localPos[2] - _currentLocalPosition[2] << std::endl;
             streamlog_out (DEBUG7) << "- global position (x,y,z, t) = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << ", " << recoHit->getTime() << std::endl;
             streamlog_out (DEBUG7) << "- (reco global (x,y,z,t)) - (true global) = " << recoHit->getPosition()[0] - simTrkHit->getPosition()[0]<< ", " << recoHit->getPosition()[1] - simTrkHit->getPosition()[1] << ", " << recoHit->getPosition()[2] - simTrkHit->getPosition()[2]<< ", " << recoHit->getTime() - simTrkHit->getTime()<< std::endl;
             streamlog_out (DEBUG7) << "- charge = " << recoHit->getEDep() << "(True: " << simTrkHit->getEDep() << ")"  << std::endl;
-            streamlog_out (DEBUG7) << "- incidence angles: theta = " << incidentTheta << ", phi = " << incidentPhi << std::endl;
             if (_produceFullPattern != 0)
             {
               // Store all the fired points
@@ -556,13 +532,11 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                    // hit's layer/ladder position is the same for all fired points 
                    newsth->setCellID0( cellid0 );
                    newsth->setCellID1( cellid1 );
-                   //Store local position in units of pixels instead
-                   const double *sLab;
-                   //TransformToLab(cellid0, sth->getPosition(), sLab);
-                   sLab = sth->getPosition();
+                   // Store the local position in units of pixels
+                   const double *localPos = sth->getPosition();
                    double pixelPos[3];
-                   pixelPos[0] = sLab[0] / _pixelSizeX;
-                   pixelPos[1] = sLab[1] / _pixelSizeY;
+                   pixelPos[0] = localPos[0] / _pixelSizeX;
+                   pixelPos[1] = localPos[1] / _pixelSizeY;
                    newsth->setPosition(pixelPos);
                    newsth->setEDep(charge); // in unit of electrons
                    newsth->setTime(sth->getTime());
@@ -609,7 +583,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     }
     streamlog_out(DEBUG9) << " Done processing event: " << evt->getEventNumber() 
         << "   in run:  " << evt->getRunNumber() << std::endl ;
-    _nEvt ++ ;
 }
 void MuonCVXDDigitiser::check(LCEvent *evt)
 {}
@@ -714,10 +687,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
         exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
     }
-    for (int i = 0; i < 3; ++i) {
-        _currentLocalPosition[i] = pos[i];
-    }
-    streamlog_out( DEBUG5 ) << "local position: " << _currentLocalPosition[0] << ", " << _currentLocalPosition[1] << ", " << _currentLocalPosition[2] << std::endl;
+    streamlog_out( DEBUG5 ) << "local position: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
     double tanx = dir[0] / dir[2];
     double tany = dir[1] / dir[2];  
     
@@ -732,14 +702,14 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     _eSum = 0.0;
     // TODO _segmentLength may be different from segmentLength, is it ok?
     double segmentLength = trackLength / ((double)_numberOfSegments);
-    _segmentDepth = _layerThickness[_currentLayer] / ((double)_numberOfSegments);
-    double z = -_layerHalfThickness[_currentLayer] - 0.5 * _segmentDepth;
+    const double segmentDepth = _layerThickness[_currentLayer] / ((double)_numberOfSegments);
+    double z = -_layerHalfThickness[_currentLayer] - 0.5 * segmentDepth;
     
     double hcharge = ( hit->getEDep() / dd4hep::GeV ); 	
     streamlog_out (DEBUG5) << "Number of ionization points: " << _numberOfSegments << ", G4 EDep = "  << hcharge << std::endl;
     for (int i = 0; i < _numberOfSegments; ++i)
     {
-        z += _segmentDepth;
+        z += segmentDepth;
         double x = pos[0] + tanx * (z - pos[2]);
         double y = pos[1] + tany * (z - pos[2]);
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
@@ -801,8 +771,6 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
         //  => _diffusionCoefficient = 0.04-0.07
         // and diffusion sigma = _diffusionCoefficient * DistanceToPlane
         // e.g. fot 50um diffusion sigma = 2.1 - 3.7 um
-        //double DriftLength = DistanceToPlane * sqrt(1.0 + pow(_tanLorentzAngleX, 2) 
-        //                                                + pow(_tanLorentzAngleY, 2));
         double SigmaDiff = DistanceToPlane * _diffusionCoefficient;
         double SigmaX = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleX, 2));
         double SigmaY = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleY, 2));
@@ -987,7 +955,6 @@ void MuonCVXDDigitiser::ChargeDigitizer(SimTrackerHitImplVec &simTrkVec)
   
   float minThreshold = _threshold;
   float maxThreshold = _chargeMax;
-  //int split = 0.3; -- future use
   int numBins = pow(2, _ChargeDigitizeNumBits)-1;
   double discCharge=-999; 
   for (int i = 0; i < (int)simTrkVec.size(); ++i) {
@@ -1100,8 +1067,7 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
     streamlog_out (DEBUG6) << "Creating reconstructed cluster" << std::endl;
     double time = 0; //average time
 
-    /* Get extreme positions, currently only implemented for barrel */
-    /* Calculate the mean */
+    /* Get the extreme positions, the charge and the mean time of the cluster */
     for (size_t iHit=0; iHit < simTrkVec.size(); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
@@ -1220,7 +1186,6 @@ void MuonCVXDDigitiser::PrintGeometryInfo()
     streamlog_out(MESSAGE) << "Pixel size X: " << _pixelSizeX << std::endl;
     streamlog_out(MESSAGE) << "Pixel size Y: " << _pixelSizeY << std::endl;
     streamlog_out(MESSAGE) << "Electrons per KeV: " << _electronsPerKeV << std::endl;
-    streamlog_out(MESSAGE) << "Segment depth: " << _segmentDepth << std::endl;
     for (int i = 0; i < _numberOfLayers; ++i) 
     {
         streamlog_out(MESSAGE) << "Layer " << i << std::endl;
