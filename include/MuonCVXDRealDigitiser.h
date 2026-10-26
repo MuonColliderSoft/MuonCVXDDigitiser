@@ -90,9 +90,12 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 10) <br> 
  * @param SensorType Sensor model to be used (0 : ChipRD53A, 1 : Trivial) <br>
  * (default parameter value : 1) <br>
- * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
- * vertex barrel), 0 = off, 1 = on <br>
+ * @param ZSegmented segmentation of the ladders along z into their sensors: -1 = auto (on when
+ * the ladders have more than one sensor, as all the MAIA barrels), 0 = off, 1 = on <br>
  * (default parameter value : -1) <br>
+ * @param LayerIDs layer IDs of the cell ID, in the order of the layers of the geometry
+ * (e.g. 0 1 2 4 6 for the MAIA vertex barrel) <br>
+ * (default parameter value : empty, i.e. 0, 1, 2, ...) <br>
  * @param StatisticsFilename File name for statistics (None for disabling the feature) <br>
  * (default parameter value : None) <br>
  * <br>
@@ -164,6 +167,7 @@ protected:
     bool _isBarrel{false};
     bool _isVertex{false};
     bool _zSegmentedActive{false};
+    std::vector<int> _layerIDs{};
 
     // geometry
     int _numberOfLayers;

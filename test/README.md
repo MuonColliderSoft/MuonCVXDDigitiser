@@ -33,6 +33,8 @@ To work offline, configure with `-DMUONCVXD_TEST_DATA_DIR=<folder with the sampl
 | `compare_resim_ignores_geant4` | On a copy of the sample with the Geant4 deposit doubled and the path length halved (`make_scaled_sample`), the re-simulated ionisation trail gives identical hits |
 | `compare_geant4_charge_follows_deposit` | On the same copy, the Geant4 ionisation trail gives twice the charge |
 | `check_time_bins` | Two digitisers in one job with different time digitizations: every fired-pixel time is on the bins of its own digitiser |
+| `digi_real`, `digi_real_rd53a` | `MuonCVXDRealDigitiser` on the three barrels (it does not support endcaps), with the trivial and the RD53A sensor models. Run with one OpenMP thread, as the threads share the random engine. Its hits keep their SimTrackerHits as raw hits, so `mean_pixels` is the number of SimTrackerHits per cluster |
+| `compare_real_reproducible` | The same for `MuonCVXDRealDigitiser` |
 
 Only `libMarlinDD4hep` and this package are loaded: other plugins of the software stack crash when
 the job terminates, which would hide failures.

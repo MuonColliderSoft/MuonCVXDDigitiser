@@ -1,0 +1,41 @@
+{
+ "events": 10,
+ "subdetectors": {
+  "ITBarrel": {
+   "efficiency": 0.9850187265917603,
+   "empty_clusters": 0,
+   "far_from_sim": 0,
+   "hits": 263,
+   "mean_charge_keV": 51.75400164549127,
+   "mean_pixels": 1.0076045627376427,
+   "median_residual_um": 6.957635925282246,
+   "non_finite": 0,
+   "non_positive_charge": 0,
+   "time_rms_ps": 659.6220243116684
+  },
+  "OTBarrel": {
+   "efficiency": 0.9557522123893806,
+   "empty_clusters": 0,
+   "far_from_sim": 0,
+   "hits": 216,
+   "mean_charge_keV": 44.82482912256577,
+   "mean_pixels": 1.0,
+   "median_residual_um": 5.771436276486519,
+   "non_finite": 0,
+   "non_positive_charge": 0,
+   "time_rms_ps": 1053.9215552672188
+  },
+  "VXDBarrel": {
+   "efficiency": 0.989769820971867,
+   "empty_clusters": 0,
+   "far_from_sim": 0,
+   "hits": 387,
+   "mean_charge_keV": 25.316676432062277,
+   "mean_pixels": 1.0,
+   "median_residual_um": 5.084050725174539,
+   "non_finite": 0,
+   "non_positive_charge": 0,
+   "time_rms_ps": 86.18350449100264
+  }
+ }
+}

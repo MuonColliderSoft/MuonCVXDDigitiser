@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Write a Marlin steering file running MuonCVXDDigitiser on the MAIA tracker sub-detectors.
+"""Write a Marlin steering file running MuonCVXDDigitiser (or MuonCVXDRealDigitiser) on the MAIA tracker
+sub-detectors.
 
 Usage: make_steering.py <config> <compact.xml> <input.slcio> <output.slcio> <steering.xml>
-                        [--subdet PREFIX ...] [--set NAME=VALUE ...]
+                        [--processor TYPE] [--subdet PREFIX ...] [--set NAME=VALUE ...]
 """
 import argparse
 import os
@@ -17,6 +18,7 @@ parser.add_argument("compact")
 parser.add_argument("input")
 parser.add_argument("output")
 parser.add_argument("steering")
+parser.add_argument("--processor", default="MuonCVXDDigitiser", help="processor type")
 parser.add_argument("--subdet", action="append", help="only these sub-detectors (output prefix)")
 parser.add_argument("--set", action="append", default=[], metavar="[PREFIX.]NAME=VALUE",
                     help="extra processor parameter, applied to every digitiser, or only to the one "
@@ -47,7 +49,7 @@ for prefix, subdet, collection, layer_ids, _ in subdets:
         **own.get(prefix, {}),
     }
     body = "\n".join(f'    <parameter name="{k}">{v}</parameter>' for k, v in params.items())
-    processors.append(f'  <processor name="{prefix}Digitiser" type="MuonCVXDDigitiser">\n{body}\n  </processor>')
+    processors.append(f'  <processor name="{prefix}Digitiser" type="{args.processor}">\n{body}\n  </processor>')
 
 execute = "\n".join(f'    <processor name="{s[0]}Digitiser"/>' for s in subdets)
 nl = "\n"

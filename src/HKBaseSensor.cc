@@ -273,7 +273,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                     0., 0., 0.,
                     c_item.time,
                     bf_encoder.lowWord(),
-                    0,
+                    static_cast<int>(c_item.pixels.size()),
                     {}
                 };
 

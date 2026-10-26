@@ -17,6 +17,9 @@
 #include "DD4hep/Detector.h"
 #include "DDRec/DetectorData.h"
 #include "DD4hep/DD4hepUnits.h"
+#include "DDSegmentation/BitFieldCoder.h"
+
+#include <map>
 
 #include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
@@ -196,9 +199,14 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
                                int(1));
 
     registerProcessorParameter("ZSegmented",
-                               "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on.",
+                               "Segmentation of the ladders along z into their sensors: -1 = auto (on when the ladders have more than one sensor), 0 = off, 1 = on.",
                                _zSegmented,
                                -1);
+
+    registerProcessorParameter("LayerIDs",
+                               "Layer IDs of the cell ID, in the order of the layers of the geometry (empty: 0, 1, 2, ...)",
+                               _layerIDs,
+                               std::vector<int>{});
 
     registerProcessorParameter("StatisticsFilename",
                                "File name for statistics (None for disabling the feature)",
@@ -222,14 +230,12 @@ void MuonCVXDRealDigitiser::init()
       std::stringstream err  ; err << " Could not determine sub-detector type for: " << _subDetName;
       throw Exception ( err.str() );
     }
+    // The geometry is read from ZPlanarData and the sensors are built as ladders
+    if (!_isBarrel) {
+      std::stringstream err  ; err << " Only barrel sub-detectors are supported, not " << _subDetName;
+      throw Exception ( err.str() );
+    }
     _isVertex = _subDetName.find("Vertex") != std::string::npos;
-
-    // Resolve the ZSegmented tri-state. Auto (< 0) enables z-segmentation for the vertex
-    // barrel only, matching MuonCVXDDigitiser.
-    _zSegmentedActive = (_zSegmented < 0) ? (_isVertex && _isBarrel)
-                                          : (_zSegmented > 0 && _isBarrel);
-    streamlog_out(DEBUG5) << "Z-segmentation " << (_zSegmentedActive ? "enabled" : "disabled")
-                          << " (ZSegmented=" << _zSegmented << ")" << std::endl;
 
     _nRun = 0 ;
     _nEvt = 0 ;
@@ -251,7 +257,7 @@ void MuonCVXDRealDigitiser::init()
         bib_xSizeHisto = new TH1F("BIBClusterSizeinX", "BIB Cluster Size in x", 1000, 0., 20);
         bib_ySizeHisto = new TH1F("BIBClusterSizeinY", "BIB Cluster Size in y", 1000, 0., 20);
         bib_zSizeHisto = new TH1F("BIBClusterSizeinZ", "BIB Cluster Size in z", 1000, 0., 20);
-        bib_eDepHisto = new TH1F("BIBClusterSizeinZ", "BIB Cluster Energy (MeV)", 1000, 0., 10e-1);
+        bib_eDepHisto = new TH1F("BIBClustereDep", "BIB Cluster Energy (MeV)", 1000, 0., 10e-1);
     }
 }
 
@@ -261,10 +267,29 @@ void MuonCVXDRealDigitiser::processRunHeader(LCRunHeader* run)
     _nRun++ ;
 
     Detector& theDetector = Detector::getInstance();
-    DetElement vxBarrel = theDetector.detector(_subDetName);              // TODO check missing barrel
-    ZPlanarData&  zPlanarData = *vxBarrel.extension<ZPlanarData>();       // TODO check missing extension
-    std::vector<ZPlanarData::LayerLayout> vx_layers = zPlanarData.layers;
+    DetElement vxBarrel = theDetector.detector(_subDetName);
+    ZPlanarData* zPlanarData = vxBarrel.isValid() ? vxBarrel.extension<ZPlanarData>(false) : nullptr;
+    if (!zPlanarData)
+    {
+      std::stringstream err  ; err << " Could not find surface of type ZPlanarData for subdetector: "
+                                 << _subDetName;
+      throw Exception( err.str() );
+    }
+    std::vector<ZPlanarData::LayerLayout> vx_layers = zPlanarData->layers;
     _numberOfLayers  = vx_layers.size();
+
+    // Layer IDs of the cell ID: they differ from the geometry layer index when the geometry
+    // skips IDs (e.g. 0 1 2 4 6 for the MAIA vertex barrel)
+    if (_layerIDs.empty())
+    {
+      for (int i = 0; i < _numberOfLayers; ++i) _layerIDs.push_back(i);
+    }
+    if ((int)_layerIDs.size() < _numberOfLayers)
+    {
+      std::stringstream err  ; err << " LayerIDs has " << _layerIDs.size() << " entries but "
+                                 << _subDetName << " has " << _numberOfLayers << " layers";
+      throw Exception( err.str() );
+    }
 
     SurfaceManager& surfMan = *theDetector.extension<SurfaceManager>();
     _map = surfMan.map( vxBarrel.name() ) ;
@@ -273,6 +298,19 @@ void MuonCVXDRealDigitiser::processRunHeader(LCRunHeader* run)
       std::stringstream err  ; err << " Could not find surface map for detector: "
                                  << _subDetName << " in SurfaceManager " ;
       throw Exception( err.str() ) ;
+    }
+
+    // Number of sensors along z on the ladders of each layer ID, from the sensor field of the
+    // surfaces. ZPlanarData only gives it for z-segmented drivers: sensorsPerLadder is 0 for the MAIA
+    // tracker barrels, whose ladders have 32 to 84 sensors with a surface each.
+    std::map<int, int> sensorsOnLadder;
+    const dd4hep::DDSegmentation::BitFieldCoder* decoder =
+        theDetector.sensitiveDetector(_subDetName).readout().idSpec().decoder();
+    for (const auto& item : *_map)
+    {
+        int layerID = decoder->get(item.first, "layer");
+        int sensor = decoder->get(item.first, "sensor");
+        sensorsOnLadder[layerID] = std::max(sensorsOnLadder[layerID], sensor + 1);
     }
 
     _barrelID = vxBarrel.id();
@@ -302,9 +340,15 @@ void MuonCVXDRealDigitiser::processRunHeader(LCRunHeader* run)
 
         _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
 
-        _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
+        _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder > 0 ? z_layout.sensorsPerLadder
+                                                                       : std::max(1, sensorsOnLadder[_layerIDs[curr_layer]]);
 
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
+        // Sensitive length of the whole ladder: the sensors times their length when the driver gives
+        // it (vertex barrel), the sensitive half-length otherwise (tracker barrels)
+        if (z_layout.lengthSensor > 0)
+            _layerLadderLength[curr_layer] = z_layout.lengthSensor * _sensorsPerLadder[curr_layer] * dd4hep::cm / dd4hep::mm ;
+        else
+            _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive * dd4hep::cm / dd4hep::mm ;
 
         _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;
 
@@ -316,6 +360,15 @@ void MuonCVXDRealDigitiser::processRunHeader(LCRunHeader* run)
 
         curr_layer++;
     }
+
+    // Resolve the ZSegmented tri-state. Auto (< 0): the pixel matrix of a ladder is split into its
+    // sensors whenever ladders have more than one, as each sensor has its own surface (all the MAIA
+    // barrels). Without segmentation, every cluster of a multi-sensor ladder is placed on its first sensor.
+    bool multiSensor = std::any_of(_sensorsPerLadder.begin(), _sensorsPerLadder.end(),
+                                   [](int n) { return n > 1; });
+    _zSegmentedActive = (_zSegmented < 0) ? multiSensor : (_zSegmented > 0);
+    streamlog_out(DEBUG5) << "Z-segmentation " << (_zSegmentedActive ? "enabled" : "disabled")
+                          << " (ZSegmented=" << _zSegmented << ")" << std::endl;
 
     PrintGeometryInfo();
 } 
@@ -365,19 +418,21 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
 
     for (int layer = 0; layer < _numberOfLayers; layer++)
     {
+        // Hits are indexed and encoded with the layer ID of the cell ID
+        const int layerID = _layerIDs[layer];
 #pragma omp parallel for
         for (int ladder = 0; ladder < _laddersInLayer[layer]; ladder++)
         {
             int num_segment_x = 1;
-            int nun_segment_y = _sensorsPerLadder[layer];
+            int nun_segment_y = _zSegmentedActive ? _sensorsPerLadder[layer] : 1;
 
-            float m_time = t_index.GetMinTime(layer, ladder);
+            float m_time = t_index.GetMinTime(layerID, ladder);
             if (m_time == HitTemporalIndexes::MAXTIME)
             {
                 if (streamlog::out.write<streamlog::DEBUG6>())
 #pragma omp critical
                 {
-                    streamlog::out() << "Undefined min time for layer " << layer
+                    streamlog::out() << "Undefined min time for layer " << layerID
                         << " ladder " << ladder << std::endl;
                 }
                 continue;
@@ -389,7 +444,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
             AbstractSensor* sensor = nullptr;
             if (sensor_type == 1)
             {
-                sensor = new TrivialSensor(layer, ladder, num_segment_x, nun_segment_y,
+                sensor = new TrivialSensor(layerID, ladder, num_segment_x, nun_segment_y,
                                             _layerLadderLength[layer], _layerLadderWidth[layer],
                                             _layerThickness[layer], _pixelSizeX, _pixelSizeY,
                                             encoder_str, _barrelID, _threshold,
@@ -397,27 +452,24 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
             }
             else
             {
-                sensor = new HKBaseSensor(layer, ladder, num_segment_x, nun_segment_y, 
+                sensor = new HKBaseSensor(layerID, ladder, num_segment_x, nun_segment_y, 
                                             _layerLadderLength[layer], _layerLadderWidth[layer],
                                             _layerThickness[layer], _pixelSizeX, _pixelSizeY,
                                             encoder_str, _barrelID, _threshold, _fe_slope,
                                             start_time, _window_size);
             }
 
-            if (sensor->GetStatus() != MatrixStatus::ok and streamlog::out.write<streamlog::ERROR>())
+            // Skip the ladder whatever the log level: its pixel matrix is not built
+            if (sensor->GetStatus() != MatrixStatus::ok)
             {
-                if (sensor->GetStatus() == MatrixStatus::pixel_number_error)
+                if (streamlog::out.write<streamlog::ERROR>())
 #pragma omp critical
                 {
-                    streamlog::out() << "Pixel number error for layer " << layer
-                                        << " ladder " << ladder << std::endl;
+                    streamlog::out() << (sensor->GetStatus() == MatrixStatus::pixel_number_error
+                                         ? "Pixel number error" : "Segment number error")
+                                     << " for layer " << layerID << " ladder " << ladder << std::endl;
                 }
-                else
-#pragma omp critical
-                {
-                    streamlog::out() << "Segment number error for layer " << layer
-                                        << " ladder " << ladder << std::endl;
-                }
+                delete sensor;
                 continue;
             }
 
@@ -457,6 +509,15 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 int idx = 0;
                 for (SegmentDigiHit& digiHit : hit_buffer)
                 {
+                    SurfaceMap::const_iterator sI = _map->find(digiHit.cellID0);
+                    if (sI == _map->end())
+                    {
+                        streamlog_out(WARNING) << "No surface found for cell ID " << digiHit.cellID0
+                                               << ": hit skipped" << std::endl;
+                        continue;
+                    }
+                    const ISurface* surf = sI->second;
+
                     TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
                     recoHit->setEDep((digiHit.charge / _electronsPerKeV) * dd4hep::keV);
 
@@ -476,9 +537,6 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
 
                     recoHit->setCellID0(digiHit.cellID0);
                     recoHit->setCellID1(0);
-
-                    SurfaceMap::const_iterator sI = _map->find(digiHit.cellID0);
-                    const ISurface* surf = sI->second;
 
                     // See DetElemSlidingWindow::StoreSignalPoints: undo the sensor offset only
                     // where it was applied, i.e. when z-segmentation is active
@@ -522,12 +580,13 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                       if (create_stats)
                       {
                         if (!st_item->isOverlay()) sig = true;
-                        if ( st_item->getPosition()[0] < minx ) minx = st_item->getPosition()[0];
-                        else if ( st_item->getPosition()[0] > maxx ) maxx = st_item->getPosition()[0];
-                        if ( st_item->getPosition()[1] < miny ) miny = st_item->getPosition()[1];
-                        else if ( st_item->getPosition()[1] > maxy ) maxy = st_item->getPosition()[1];
-                        if ( st_item->getPosition()[2] < minz ) minz = st_item->getPosition()[2];
-                        else if ( st_item->getPosition()[2] > maxz ) maxz = st_item->getPosition()[2];
+                        // Not "else if": with a single hit, it is both the minimum and the maximum
+                        minx = std::min(minx, st_item->getPosition()[0]);
+                        maxx = std::max(maxx, st_item->getPosition()[0]);
+                        miny = std::min(miny, st_item->getPosition()[1]);
+                        maxy = std::max(maxy, st_item->getPosition()[1]);
+                        minz = std::min(minz, st_item->getPosition()[2]);
+                        maxz = std::max(maxz, st_item->getPosition()[2]);
                       }
                         recoHit->rawHits().push_back( st_item );
                         LCRelationImpl* t_rel = new LCRelationImpl {};
@@ -688,6 +747,7 @@ void MuonCVXDRealDigitiser::PrintGeometryInfo()
         streamlog_out(MESSAGE) << "Layer " << i << std::endl;
         streamlog_out(MESSAGE) << "  Number of ladders: " << _laddersInLayer[i] << std::endl;
         streamlog_out(MESSAGE) << "  Radius: " << _layerRadius[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Sensors per ladder: " << _sensorsPerLadder[i] << std::endl;
         streamlog_out(MESSAGE) << "  Ladder length: " << _layerLadderLength[i] << std::endl;
         streamlog_out(MESSAGE) << "  Ladder width: "<< _layerLadderWidth[i] << std::endl;
         streamlog_out(MESSAGE) << "  Ladder half width: " << _layerLadderHalfWidth[i] << std::endl;
