@@ -37,6 +37,38 @@ using dd4hep::rec::Vector3D;
 
 MuonCVXDDigitiser aMuonCVXDDigitiser;
 
+namespace {
+// Half-lengths along u and v (mm) of the sensitive area of a surface, centred on its origin:
+// from the outline of the surface when available, which also covers non-rectangular surfaces
+// (e.g. the trapezoidal petals of the vertex endcap), from its lengths along u and v otherwise
+std::pair<double, double> sensorHalfLengths(const ISurface& surface)
+{
+    std::pair<double, double> half(0.5 * surface.length_along_u() / dd4hep::mm,
+                                   0.5 * surface.length_along_v() / dd4hep::mm);
+    auto* volSurface = dynamic_cast<const dd4hep::rec::Surface*>(&surface);
+    if (!volSurface) return half;
+    const auto lines = const_cast<dd4hep::rec::Surface*>(volSurface)->getLines();
+    if (lines.empty()) return half;
+
+    const Vector3D origin = surface.origin();
+    const Vector3D u = surface.u();
+    const Vector3D v = surface.v();
+    double halfU = 0;
+    double halfV = 0;
+    for (const auto& line : lines) {
+        for (const Vector3D& point : {line.first, line.second}) {
+            const Vector3D d = point - origin;
+            halfU = std::max(halfU, std::abs(d.dot(u)));
+            halfV = std::max(halfV, std::abs(d.dot(v)));
+        }
+    }
+    // Rounded to 1 nm, so that rounding errors of the outline do not shift the pixel grid
+    half.first = std::round(halfU / dd4hep::mm * 1e6) / 1e6;
+    half.second = std::round(halfV / dd4hep::mm * 1e6) / 1e6;
+    return half;
+}
+}
+
 MuonCVXDDigitiser::MuonCVXDDigitiser() :
     Processor("MuonCVXDDigitiser"),
     _nRun(0),
@@ -272,6 +304,10 @@ void MuonCVXDDigitiser::LoadGeometry()
                                  << _subDetName << " in SurfaceManager " ;
       throw Exception( err.str() ) ;
     }
+    _sensorHalfLengths.clear();
+    _sensorHalfLengths.reserve(_map->size());
+    for (const auto& [cellID, surface] : *_map)
+      _sensorHalfLengths.emplace(cellID, sensorHalfLengths(*surface));
     // Resolve the ZSegmented tri-state. Auto (< 0) reproduces the geometry-derived
     // behaviour: only the vertex barrel is segmented along z.
     bool zSegmented = (_zSegmented < 0) ? (isVertex && isBarrel) : (_zSegmented > 0 && isBarrel);
@@ -310,7 +346,7 @@ void MuonCVXDDigitiser::LoadGeometry()
           }
           else
             _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
-          if ((isInnerTracker==1 || isOuterTracker==1) && z_layout.lengthSensor==0) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
+          if ((isInnerTracker==1 || isOuterTracker==1) && z_layout.lengthSensor==0) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive * dd4hep::cm / dd4hep::mm;}
 	  _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;	  
 	  _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
 	  _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
@@ -667,7 +703,16 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     const int cellID0 = hit->getCellID0() ;
     streamlog_out( DEBUG3 ) << "Cell ID of Sim Hit: " << cellID0 << std::endl;
     SurfaceMap::const_iterator sI = _map->find( cellID0 ) ;
+    if (sI == _map->end()) {
+      streamlog_out( WARNING ) << "No surface found for cell ID " << cellID0 << ": hit skipped" << std::endl;
+      _currentLayer = -1;
+      return;
+    }
     const dd4hep::rec::ISurface* surf = sI->second ;
+    // The pixel matrix covers the sensor the hit is on
+    const auto& halfLengths = _sensorHalfLengths.at( sI->first );
+    _sensorHalfLengthU = halfLengths.first;
+    _sensorHalfLengthV = halfLengths.second;
     Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
     // We need it?
     if ( ! surf->insideBounds( dd4hep::mm * oldPos ) ) {
@@ -989,16 +1034,15 @@ void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
 void MuonCVXDDigitiser::ApplyThreshold(SimTrackerHitImplVec &simTrkVec)
 {
    streamlog_out (DEBUG6) << "Applying threshold" << std::endl;
-   float actualThreshold = _threshold;
-   
    for (int i = 0; i < (int)simTrkVec.size(); ++i)
    {
      SimTrackerHitImpl *hit = simTrkVec[i];
-     
+
      double smear = 0;
      float origCharge = hit->getEDep();
+     // Each pixel has its own threshold, smeared around the nominal one
      if (_thresholdSmearSigma > 0) smear = RandGauss::shoot(0., _thresholdSmearSigma);
-     actualThreshold = actualThreshold + smear;
+     float actualThreshold = _threshold + smear;
      if (hit->getEDep() <= actualThreshold) hit->setEDep(0.0);
      
      streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2]
@@ -1218,21 +1262,9 @@ void MuonCVXDDigitiser::TransformToLab(const int cellID, const double *xLoc, dou
  */
 void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & iy)
 {
-    int layer = _currentLayer;
-    // Shift all of L/2 so that all numbers are positive
-    if (isBarrel){
-        double yInLadder = y + _layerLadderLength[layer] / 2;
-        iy = int(yInLadder / _pixelSizeY);
-        double xInLadder = x + _layerLadderHalfWidth[layer];
-        ix = int(xInLadder / _pixelSizeX);
-    }
-    else{
-        double yInPetal = y + _layerPetalLength[layer] / 2;
-        iy = int(yInPetal / _pixelSizeY);
-        //double localwidth = (_layerPetalOuterWidth[layer] - _layerPetalInnerWidth[layer])/(_layerPetalLength[layer]) * yInPetal;
-        double xInPetal = x + _layerPetalOuterWidth[layer]/2;
-        ix = int(xInPetal / _pixelSizeX);
-    }
+    // Shift by half the sensor length so that all numbers are positive
+    iy = int((y + _sensorHalfLengthV) / _pixelSizeY);
+    ix = int((x + _sensorHalfLengthU) / _pixelSizeX);
 }
 /**
  Function calculates position in the local frame 
@@ -1240,34 +1272,20 @@ void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & 
 */
 void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double & y)
 {
-    int layer = _currentLayer;
     // Put the point in the cell center
-    if (isBarrel){
-        y = ((0.5 + double(iy)) * _pixelSizeY) - _layerLadderLength[layer] / 2;
-        x = ((0.5 + double(ix)) * _pixelSizeX) - _layerLadderHalfWidth[layer];
-    }
-    else {
-        y = ((0.5 + double(iy)) * _pixelSizeY) - _layerPetalLength[layer] / 2;
-        x = ((0.5 + double(ix)) * _pixelSizeX) - _layerPetalOuterWidth[layer] /2;
-    }
+    y = ((0.5 + double(iy)) * _pixelSizeY) - _sensorHalfLengthV;
+    x = ((0.5 + double(ix)) * _pixelSizeX) - _sensorHalfLengthU;
 }
-int MuonCVXDDigitiser::GetPixelsInaColumn() //SP: why columns!?! I would have guess row..
+// Number of pixels along u (x) of the current sensor. The tolerance keeps a sensor that is a
+// whole number of pixels from getting an extra one from rounding errors.
+int MuonCVXDDigitiser::GetPixelsInaColumn()
 {
-    if (isBarrel){
-        return ceil(_layerLadderWidth[_currentLayer] / _pixelSizeX);
-    }
-    else{
-        return ceil(_layerPetalOuterWidth[_currentLayer]/ _pixelSizeX);
-    }
+    return std::ceil(2 * _sensorHalfLengthU / _pixelSizeX - 1e-6);
 }
+// Number of pixels along v (y) of the current sensor
 int MuonCVXDDigitiser::GetPixelsInaRow()
 {
-    if (isBarrel){
-        return ceil(_layerLadderLength[_currentLayer] / _pixelSizeY);
-    }
-    else {
-        return ceil(_layerPetalLength[_currentLayer] / _pixelSizeY);
-    }
+    return std::ceil(2 * _sensorHalfLengthV / _pixelSizeY - 1e-6);
 }
 void MuonCVXDDigitiser::PrintGeometryInfo()
 {

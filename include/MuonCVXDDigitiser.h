@@ -2,6 +2,8 @@
 #define MuonCVXDDigitiser_h 1
 
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "marlin/Processor.h"
@@ -197,8 +199,14 @@ protected:
     std::vector<float> _layerPetalInnerWidth{};
     std::vector<float> _layerPetalOuterWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
+    // Half-lengths along u and v (mm) of the sensitive area of each sensor, by cell ID.
+    // The pixel matrix covers the sensor the hit is on: the ladder and petal dimensions
+    // above are per layer and do not match all the sensors (e.g. tracker endcap modules).
+    std::unordered_map<unsigned long, std::pair<double, double>> _sensorHalfLengths{};
 
     // internal state
+    double _sensorHalfLengthU{0};
+    double _sensorHalfLengthV{0};
     int _currentLayer;
     int _currentLadder;
     int _numberOfSegments;
