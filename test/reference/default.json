@@ -6,72 +6,72 @@
    "empty_clusters": 0,
    "far_from_sim": 0,
    "hits": 263,
-   "mean_charge_keV": 49.7188026865877,
-   "mean_pixels": 6.155893536121673,
-   "median_residual_um": 7.12512735115188,
+   "mean_charge_keV": 49.91253208849396,
+   "mean_pixels": 6.144486692015209,
+   "median_residual_um": 8.575979233849809,
    "non_finite": 0,
    "non_positive_charge": 0,
-   "time_rms_ps": 20.957371590602097
+   "time_rms_ps": 21.668417685832036
   },
   "ITEndcap": {
    "efficiency": 0.993006993006993,
    "empty_clusters": 0,
    "far_from_sim": 0,
    "hits": 142,
-   "mean_charge_keV": 41.03935120389944,
-   "mean_pixels": 5.190140845070423,
-   "median_residual_um": 7.83494204538227,
+   "mean_charge_keV": 40.699457469958695,
+   "mean_pixels": 5.161971830985915,
+   "median_residual_um": 6.561597325374061,
    "non_finite": 0,
    "non_positive_charge": 0,
-   "time_rms_ps": 23.44707550817648
+   "time_rms_ps": 24.06179626133989
   },
   "OTBarrel": {
    "efficiency": 0.9557522123893806,
    "empty_clusters": 0,
    "far_from_sim": 0,
    "hits": 216,
-   "mean_charge_keV": 43.62375145521784,
-   "mean_pixels": 5.736111111111111,
-   "median_residual_um": 7.82151950735064,
+   "mean_charge_keV": 44.57927387327935,
+   "mean_pixels": 5.805555555555555,
+   "median_residual_um": 7.593563246912286,
    "non_finite": 0,
    "non_positive_charge": 0,
-   "time_rms_ps": 24.009656081599292
+   "time_rms_ps": 20.21771850787125
   },
   "OTEndcap": {
    "efficiency": 0.9652777777777778,
    "empty_clusters": 0,
    "far_from_sim": 0,
    "hits": 139,
-   "mean_charge_keV": 44.54182283997587,
-   "mean_pixels": 5.697841726618705,
-   "median_residual_um": 8.296215416575322,
+   "mean_charge_keV": 45.54108535420638,
+   "mean_pixels": 5.58273381294964,
+   "median_residual_um": 8.001130824515936,
    "non_finite": 0,
    "non_positive_charge": 0,
-   "time_rms_ps": 20.4035434116864
+   "time_rms_ps": 22.4536777649567
   },
   "VXDBarrel": {
    "efficiency": 0.989769820971867,
    "empty_clusters": 0,
    "far_from_sim": 0,
    "hits": 387,
-   "mean_charge_keV": 24.162242939018583,
-   "mean_pixels": 2.842377260981912,
-   "median_residual_um": 5.904118594681907,
+   "mean_charge_keV": 23.683767006494502,
+   "mean_pixels": 2.7700258397932815,
+   "median_residual_um": 5.758503716905211,
    "non_finite": 0,
    "non_positive_charge": 0,
-   "time_rms_ps": 31.28388546477593
+   "time_rms_ps": 31.682758892952418
   },
   "VXDEndcap": {
    "efficiency": 0.990521327014218,
    "empty_clusters": 0,
    "far_from_sim": 0,
    "hits": 209,
-   "mean_charge_keV": 21.627227902194065,
-   "mean_pixels": 2.799043062200957,
-   "median_residual_um": 5.526551366073406,
+   "mean_charge_keV": 22.213967338357005,
+   "mean_pixels": 2.8325358851674642,
+   "median_residual_um": 5.639859721734093,
    "non_finite": 0,
    "non_positive_charge": 0,
-   "time_rms_ps": 30.64122129545312
+   "time_rms_ps": 32.487284938528035
   }
  }
 }
