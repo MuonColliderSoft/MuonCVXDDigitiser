@@ -42,8 +42,17 @@ CI (`.github/workflows/key4hep-build.yaml`) builds with `-Werror` and runs the t
 Key4hep release (required) and nightlies (reported, not blocking), from CVMFS.
 
 - **Comparison with the base branch** (CI, `compare_to_base.sh`): on a pull request, CI also builds
-  the base branch and compares the outputs hit by hit. Any difference fails the job unless the pull
-  request has the `changes-output` label. The tables are in the job summary.
+  the base branch and compares the outputs hit by hit. The tables are in the job summary, and the
+  result is an annotation on the run:
+
+  | Outputs | Without `changes-output` | With `changes-output` |
+  |---|---|---|
+  | identical | passes | passes, with a warning to remove the label |
+  | different | fails (error) | passes, with a notice |
+  | comparison failed (build or digitisation) | fails (error) | fails (error) |
+
+  The label applies to the whole pull request: when only some of its commits are meant to change
+  the output, check the others locally with `compare_to_base.sh`.
 
 A pull request that changes the output on purpose regenerates the references, so the change is
 visible in its diff, and gets the `changes-output` label:

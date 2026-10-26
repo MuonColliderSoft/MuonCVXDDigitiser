@@ -90,23 +90,42 @@ jobs:
           CHANGES_OUTPUT: ${{ contains(github.event.pull_request.labels.*.name, 'changes-output') }}
         run: |
           source /env.sh
-          echo "### Output compared with \`${{ github.event.pull_request.base.ref }}\` (${{ matrix.build_type }}, ${{ matrix.image }})" > summary.md
-          # The base branch is built without -Werror: it may predate the warning fixes
+          base="${{ github.event.pull_request.base.ref }}"
+          job="${{ matrix.build_type }}, ${{ matrix.image }}"
+          echo "### Output compared with \`$base\` ($job)" > summary.md
+          # The base branch is built without -Werror: it may predate the warning fixes.
+          # compare_to_base.sh exits with 0 if the outputs are identical, 3 if they differ, and
+          # with any other code if building, digitising or comparing failed.
           status=0
           { cmake -S base -B build_base -G Ninja -DCMAKE_CXX_STANDARD=${CXX_STANDARD} -DBUILD_TESTING=OFF > /dev/null &&
             ninja -C build_base > /dev/null &&
             bash head/test/compare_to_base.sh build_base/lib/libMuonCVXDDigitiser.so build/lib/libMuonCVXDDigitiser.so \
                  build/test/data/mu_gun_detailed.slcio compare summary.md; } || status=$?
-          if [ "$status" != 0 ]; then
-            if [ "$CHANGES_OUTPUT" = "true" ]; then
-              echo -e "\nThe output differs from the base branch, as expected with the \`changes-output\` label." >> summary.md
-              status=0
-            else
-              echo -e "\n**The output differs from the base branch.** If this is intended, update the references and add the \`changes-output\` label." >> summary.md
-            fi
-          fi
+          case "$status:$CHANGES_OUTPUT" in
+            0:true)
+              message="The output is identical to $base, but the PR has the changes-output label: remove it if the PR no longer changes the output."
+              echo "::warning title=Output identical to $base::$message"
+              exit_code=0 ;;
+            0:*)
+              message="The output is identical to $base."
+              exit_code=0 ;;
+            3:true)
+              message="The output differs from $base, as declared by the changes-output label."
+              echo "::notice title=Output differs from $base (expected)::$message"
+              exit_code=0 ;;
+            3:*)
+              message="The output differs from $base. If this is intended, update the references and add the changes-output label."
+              echo "::error title=Output differs from $base::$message"
+              exit_code=1 ;;
+            *)
+              message="The comparison with $base failed (exit code $status) while building $base or digitising: see the log of this step."
+              echo "::error title=Comparison with $base failed::$message"
+              exit_code=1 ;;
+          esac
+          echo "$message"
+          echo -e "\n**$message**" >> summary.md
           cat summary.md >> $GITHUB_STEP_SUMMARY
-          exit $status
+          exit $exit_code
 
       - name: Upload test outputs
         if: always()
