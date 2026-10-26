@@ -705,13 +705,17 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     if (_doMultipleScattering && q_charge == 0.)
         streamlog_out( DEBUG6 ) << "Neutral particle, skipping multiple scattering" << std::endl;
 
-    if(_doMultipleScattering && q_charge > 0.){
+    // Hits with neither momentum nor MC particle cannot be scattered
+    if(_doMultipleScattering && q_charge > 0. && _currentParticleMomentum > 0.){
         streamlog_out( DEBUG6 ) << "Applying multiple scattering formula" << std::endl;
         //**************************************************************************
         //Multiple scattering implementation based on PDG formula (https://pdg.lbl.gov/2020/reviews/rpp2020-rev-passage-particles-matter.pdf)
         //**************************************************************************
-            double p = std::sqrt(pow(hit->getMomentum()[0],2) + pow(hit->getMomentum()[1],2) + pow(hit->getMomentum()[2],2)); //[GeV/c]
-            double beta = p / std::sqrt(p*p + _currentParticleMass*_currentParticleMass);
+            // Momentum and mass from FindLocalPosition(), which falls back to the MC particle
+            // when the hit carries no momentum (p = 0 would make theta_0 infinite)
+            double p = _currentParticleMomentum / dd4hep::GeV; //[GeV/c]
+            double mass = _currentParticleMass / dd4hep::GeV; //[GeV/c^2]
+            double beta = p / std::sqrt(p*p + mass*mass);
 
             double x_0 = 93.7; // [mm] -> radiation length in silicon
             double sensorT = _layerThickness[_currentLayer]; // [mm] -> sensor thickness
