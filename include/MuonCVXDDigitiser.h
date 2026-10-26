@@ -95,6 +95,9 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 100) <br>
   * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
  * (default parameter value : 10) <br> 
+ * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
+ * vertex barrel, reproducing the geometry-derived behaviour), 0 = off, 1 = on <br>
+ * (default parameter value : -1) <br>
  * <br>
  */
 class MuonCVXDDigitiser : public Processor
@@ -178,9 +181,8 @@ protected:
     // geometry
     int _numberOfLayers;
     std::vector<int>   _laddersInLayer{};
-#ifdef ZSEGMENTED
+    int _zSegmented;
     std::vector<int>   _sensorsPerLadder{};
-#endif
     std::vector<float> _layerRadius{};
     std::vector<float> _layerThickness{};
     std::vector<float> _layerHalfThickness{};

@@ -180,6 +180,10 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "ID of layers of subdetector",
                                _layerIDs,
                                {});
+    registerProcessorParameter("ZSegmented",
+                               "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on.",
+                               _zSegmented,
+                               -1);
 }
 void MuonCVXDDigitiser::init()
 { 
@@ -254,8 +258,14 @@ void MuonCVXDDigitiser::LoadGeometry()
                                  << _subDetName << " in SurfaceManager " ;
       throw Exception( err.str() ) ;
     }
+    // Resolve the ZSegmented tri-state. Auto (< 0) reproduces the geometry-derived
+    // behaviour: only the vertex barrel is segmented along z.
+    bool zSegmented = (_zSegmented < 0) ? (isVertex && isBarrel) : (_zSegmented > 0 && isBarrel);
+    streamlog_out(DEBUG5) << "Z-segmentation " << (zSegmented ? "enabled" : "disabled")
+                          << " (ZSegmented=" << _zSegmented << ")" << std::endl;
+
     _laddersInLayer.resize(_numberOfLayers);
-    if(isVertex==1 && isBarrel==1) //Zsegmented for vertex barrel only in MuColl_v1 (3 TeV) and both 10 TeV (MAIA_v0 & MuSIC_v2) geometries
+    if(zSegmented)
       _sensorsPerLadder.resize(_numberOfLayers);
     _layerHalfPhi.resize(_numberOfLayers);
     _layerHalfThickness.resize(_numberOfLayers);
@@ -281,7 +291,7 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 	  _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
-	  if(isVertex==1){ //Zsegmented layers
+	  if(zSegmented){ //Zsegmented layers
 	    _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
 	    _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
           }
