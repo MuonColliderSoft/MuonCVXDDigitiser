@@ -741,6 +741,13 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         double pathL_total = std::fabs(dir[2]) > 1e-12 ? sensorT / std::fabs(dir[2]) : sensorT;
         theta_0_total = (0.0136/(beta*p))*q_charge*std::sqrt(pathL_total/x_0)
                       * (1+0.038*std::log(pathL_total*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+        _msTotalScatteringAngle = theta_0_total;  // Store for later use in ionization placement
+
+        _msTrajectory.clear();
+        _msSegmentLengths.clear();
+        _msCumulativePath.clear();
+        _msTrajectory.push_back({pos[0], pos[1], pos[2]});  // Store entry point
+        _msCumulativePath.push_back(0.0);  // Cumulative path at entry = 0
 
         for (int islice = 0; islice < n_slices; ++islice) {
             // Path length for this segment based on current direction
@@ -785,6 +792,18 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             pos[1] += dirAvg[1] * pathL_segment;
             pos[2] += dirAvg[2] * pathL_segment;
 
+            // Compute distance from previous trajectory point
+            double prev_x = _msTrajectory.back()[0];
+            double prev_y = _msTrajectory.back()[1];
+            double prev_z = _msTrajectory.back()[2];
+            double dx_seg = pos[0] - prev_x;
+            double dy_seg = pos[1] - prev_y;
+            double dz_seg = pos[2] - prev_z;
+            double segLen = std::sqrt(dx_seg*dx_seg + dy_seg*dy_seg + dz_seg*dz_seg);
+
+            _msTrajectory.push_back({pos[0], pos[1], pos[2]});
+            _msSegmentLengths.push_back(segLen);
+            _msCumulativePath.push_back(_msCumulativePath.back() + segLen);
         }
         //find final exit point
         for (int i = 0; i < 2; ++i) {
@@ -862,17 +881,21 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     // TODO _segmentLength may be different from segmentLength, is it ok?
     double segmentLength = trackLength / ((double)_numberOfSegments);
 
-    // Place the trail as a straight segment along u, parametrised by the path coordinate s
-    // measured from the hit position.
+    // Place the trail as a straight segment along u, parametrised by the path coordinate s.
+    // Use actual entry/exit points when MS has displaced them; otherwise use original hit position.
     double sLo, sHi;
+    double trailRefZ = origPos[2];  // Reference z for trail parametrization
 
     if (resimulate)
     {
         if (crossesPlane)
         {
             // The trail spans the whole sensor thickness, entry face to exit face.
-            sLo = (-halfT - origPos[2]) / u[2];
-            sHi = ( halfT - origPos[2]) / u[2];
+            // Use actual MS-displaced entry point if available
+            if (_doMultipleScattering && !_msTrajectory.empty())
+                trailRefZ = entry[2];
+            sLo = (-halfT - trailRefZ) / u[2];
+            sHi = ( halfT - trailRefZ) / u[2];
             if (sLo > sHi) std::swap(sLo, sHi);
         }
         else
@@ -891,8 +914,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         sLo = -0.5 * std::min(trackLength, crossingLength);
         sHi = -sLo;
         if (crossesPlane) {
-            double sA = (-halfT - origPos[2]) / u[2];
-            double sB = ( halfT - origPos[2]) / u[2];
+            double sA = (-halfT - trailRefZ) / u[2];
+            double sB = ( halfT - trailRefZ) / u[2];
             if (sA > sB) std::swap(sA, sB);
             sLo = std::max(sLo, sA);
             sHi = std::min(sHi, sB);
@@ -905,12 +928,50 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         << ", trail from " << (resimulate ? "re-simulation" : "Geant4")
         << ", G4 EDep = "  << hcharge << std::endl;
 
+    // When multiple scattering was applied, use the kinked trajectory for ionization placement
+    // Skip if scattering angle is small (< 1 mrad) to avoid unnecessary interpolation overhead
+    bool useKinkedPath = (_doMultipleScattering && !_msTrajectory.empty() && _msTotalScatteringAngle > 1e-3);
+
     for (int i = 0; i < _numberOfSegments; ++i)
     {
-        double sPath = sLo + (i + 0.5) * geomStep;
-        double x = origPos[0] + sPath * u[0];
-        double y = origPos[1] + sPath * u[1];
-        double z = origPos[2] + sPath * u[2];
+        double x, y, z;
+
+        if (useKinkedPath)
+        {
+            // Interpolate position along the kinked trajectory using precomputed cumulative paths
+            double frac = (i + 0.5) / _numberOfSegments;  // Position along trail
+            double targetPathLength = frac * crossingLength;
+
+            // Find segment containing target path length (linear search since n is small)
+            int segIdx = 0;
+            for (segIdx = 0; segIdx + 1 < (int)_msCumulativePath.size(); ++segIdx)
+            {
+                if (_msCumulativePath[segIdx + 1] >= targetPathLength)
+                    break;
+            }
+
+            // Interpolate within the segment using precomputed segment length
+            double segmentPath = _msSegmentLengths[segIdx];
+            double cumulativePath = _msCumulativePath[segIdx];
+            double t = (segmentPath > 1e-12) ? (targetPathLength - cumulativePath) / segmentPath : 0.5;
+            t = std::max(0.0, std::min(1.0, t));  // Clamp to [0, 1]
+
+            double dx_traj = _msTrajectory[segIdx+1][0] - _msTrajectory[segIdx][0];
+            double dy_traj = _msTrajectory[segIdx+1][1] - _msTrajectory[segIdx][1];
+            double dz_traj = _msTrajectory[segIdx+1][2] - _msTrajectory[segIdx][2];
+
+            x = _msTrajectory[segIdx][0] + t * dx_traj;
+            y = _msTrajectory[segIdx][1] + t * dy_traj;
+            z = _msTrajectory[segIdx][2] + t * dz_traj;
+        }
+        else
+        {
+            // Use straight-line trail along direction u
+            double sPath = sLo + (i + 0.5) * geomStep;
+            x = origPos[0] + sPath * u[0];
+            y = origPos[1] + sPath * u[1];
+            z = origPos[2] + sPath * u[2];
+        }
 
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV,
         // length in mm, meanLoss eloss in MeV.
@@ -952,6 +1013,11 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         streamlog_out (DEBUG3) << "- " << i << ": E=" << _ionisationPoints[i].eloss
             << ", x=" << _ionisationPoints[i].x << ", y=" << _ionisationPoints[i].y << ", z=" << _ionisationPoints[i].z << std::endl;
     }
+
+    // Clean up trajectory cache for next hit
+    _msTrajectory.clear();
+    _msSegmentLengths.clear();
+    _msCumulativePath.clear();
 }
 void MuonCVXDDigitiser::ProduceSignalPoints()
 {
