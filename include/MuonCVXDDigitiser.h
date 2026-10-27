@@ -2,13 +2,14 @@
 #define MuonCVXDDigitiser_h 1
 
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "marlin/Processor.h"
 #include "lcio.h"
 #include "EVENT/SimTrackerHit.h"
 #include "EVENT/LCIO.h"
-#include "IMPL/TrackerHitImpl.h"
 #include <IMPL/TrackerHitPlaneImpl.h>
 #include "IMPL/SimTrackerHitImpl.h"
 #include <IMPL/LCCollectionVec.h>
@@ -43,61 +44,77 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * Digitization follows the procedure adopted in the CMS software package. 
  * See https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuidePixelDigitization
  * 
- * @param CollectionName name of input SimTrackerHit collection <br>
- * (default parameter value : "VXDCollection")
- * @param OutputCollectionName name of output TrackerHitsPlane collection <br>
- * (default parameter value : "VTXTrackerHits")
- * @param RelationColName name of the LCRelation <br>
- * (default parameter value : "VTXTrackerHitRelations")
- * @param SubDetectorName name of the detector <br>
- * (default parameter value : "VertexBarrel")
- * @param TanLorentz tangent of the Lorentz angle <br>
+ * @param CollectionName name of the input SimTrackerHit collection <br>
+ * (default parameter value : "VertexBarrelCollection") <br>
+ * @param OutputCollectionName name of the output TrackerHitPlane collection <br>
+ * (default parameter value : "VTXTrackerHits") <br>
+ * @param RelationColName name of the output LCRelation collection, reconstructed to simulated hits <br>
+ * (default parameter value : "VTXTrackerHitRelations") <br>
+ * @param SubDetectorName name of the sub-detector, which sets barrel or endcap and vertex,
+ * inner or outer tracker <br>
+ * (default parameter value : "VertexBarrel") <br>
+ * @param TanLorentz tangent of the Lorentz angle along x <br>
  * (default parameter value : 0.8) <br>
- * @param TanLorentzY tangent of the Lorentz angle along Y <br>
+ * @param TanLorentzY tangent of the Lorentz angle along y <br>
  * (default parameter value : 0) <br>
  * @param CutOnDeltaRays cut on the energy of delta-electrons (in MeV) <br>
  * (default parameter value : 0.03) <br>
- * @param Diffusion diffusion coefficient for the nominal active layer thickness (in mm) <br>
- * (default parameter value : 0.002) <br>
- * @param PixelSizeX pixel size along direction perpendicular to beam axis (in mm) <br>
- * (default value : 0.025) <br>
- * @param PixelSizeY pixel size along beam axis (in mm) <br>
- * (default value : 0.025) <br>
- * @param ElectronsPerMeV number of electrons produced per MeV of deposited energy <br>
+ * @param DiffusionCoefficient diffusion coefficient sqrt(2D / mu / V): the diffusion sigma is this
+ * times the drift distance <br>
+ * (default parameter value : 0.07) <br>
+ * @param PixelSizeX pixel size along u, perpendicular to the beam axis in the barrel (in mm) <br>
+ * (default parameter value : 0.025) <br>
+ * @param PixelSizeY pixel size along v, along the beam axis in the barrel (in mm) <br>
+ * (default parameter value : 0.025) <br>
+ * @param ElectronsPerKeV number of electrons produced per keV of deposited energy <br>
  * (default parameter value : 270.3) <br>
- * @param Threshold threshold on charge deposited on one pixel (in electons) <br>
- * (default parameter value : 200.0) <br>
- * @param SegmentLength segment length along track path which is used to subdivide track into segments (in mm).
- * The number of track subsegments is calculated as int(TrackLengthWithinActiveLayer/SegmentLength)+1 <br>
+ * @param Threshold threshold on the charge collected by one pixel (in electrons) <br>
+ * (default parameter value : 500) <br>
+ * @param ChargeMaximum upper end of the uniform charge digitization (ChargeDigitizeBinning = 0),
+ * in electrons <br>
+ * (default parameter value : 15000) <br>
+ * @param SegmentLength length of the segments the track is split into inside the sensor (in mm);
+ * the number of segments is ceil(track length / SegmentLength) <br>
  * (default parameter value : 0.005) <br>
- * @param WidthOfCluster defines width in Gaussian sigmas to perform charge integration for 
- * a given pixel <br>
- * (default parameter value : 3.0) <br>
- * @param PoissonSmearing flag to switch on gaussian smearing of electrons collected on pixels <br>
+ * @param PoissonSmearing flag to switch on the Poisson (Gaussian above 1000 electrons) smearing
+ * of the electrons collected by each pixel <br>
  * (default parameter value : 1) <br>
- * @param ThresholdSmearSigma: sigma of Gaussian used in threshold smearing <br>
- * (default parameter value: 25) <br>
- * @param ChargeDigitize flag to switch on charge discretization <br>
- * (default parameter value: 1) <br>
- * @param ChargeDigitizeNumBits number of bits used to determine bins for charge discretization <br>
- * (default parameter value: 4) <br>
- * @param ChargeDigitizeBinning binning scheme for charge discretization
- * (default parameter value; 1) <br>
- * @param ElectronicEffects flag to switch on gaussian smearing of signal (electronic noise) <br>
+ * @param ThresholdSmearSigma sigma of the Gaussian smearing of the threshold of each pixel (in electrons) <br>
+ * (default parameter value : 25) <br>
+ * @param DigitizeCharge flag to switch on the charge digitization <br>
  * (default parameter value : 1) <br>
- * @param ElectronicNoise electronic noise in electrons <br>
- * (default parameter value : 100) <br>
- * @param StoreFiredPixels flag to store also the fired pixels (collection names: "VTXPixels") <br>
+ * @param ChargeDigitizeNumBits number of bits of the charge digitization <br>
+ * (default parameter value : 4) <br>
+ * @param ChargeDigitizeBinning binning of the charge digitization: 0 = uniform, 1 = variable <br>
+ * (default parameter value : 1) <br>
+ * @param DigitizeTime flag to switch on the time digitization <br>
+ * (default parameter value : 1) <br>
+ * @param TimeDigitizeNumBits number of bits of the time digitization <br>
+ * (default parameter value : 10) <br>
+ * @param TimeDigitizeBinning binning of the time digitization: 0 = uniform <br>
  * (default parameter value : 0) <br>
- * @param EnergyLoss Energy loss in keV/mm <br>
- * (default parameter value : 280.0) <br>
- * @param MaxEnergyDelta max delta in energy hit (difference from the hit simulated charged and the comuputed ones) in electrons <br>
+ * @param TimeMaximum dynamic range of the time measurement (in ns) <br>
+ * (default parameter value : 10) <br>
+ * @param TimeSmearingSigma Gaussian time resolution of each pixel (in ns), 0 to switch off <br>
+ * (default parameter value : 0.05) <br>
+ * @param ElectronicEffects flag to switch on the Gaussian smearing of the signal by the electronic noise <br>
+ * (default parameter value : 1) <br>
+ * @param ElectronicNoise electronic noise (in electrons) <br>
+ * (default parameter value : 80) <br>
+ * @param StoreFiredPixels flag to also store the fired pixels, in VBPixels, VEPixels, IBPixels,
+ * IEPixels, OBPixels or OEPixels depending on SubDetectorName <br>
+ * (default parameter value : 0) <br>
+ * @param EnergyLoss mean energy loss along the track, around which the energy of each segment is
+ * sampled (in keV/mm) <br>
+ * (default parameter value : 280) <br>
+ * @param MaxEnergyDelta charge added to the segments, sampled from 1/n^2, until the total is within
+ * this of the Geant4 deposit (in electrons) <br>
  * (default parameter value : 100) <br>
-  * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
- * (default parameter value : 10) <br> 
- * @param ZSegmented sensor segmentation along z for barrel layers: -1 = auto (on for the
- * vertex barrel, reproducing the geometry-derived behaviour), 0 = off, 1 = on <br>
- * (default parameter value : -1) <br>
+ * @param MaxTrackLength maximum track length inside the sensor (in mm) <br>
+ * (default parameter value : 10) <br>
+ * @param LayerIDs IDs of the layers to digitise, in the order of the layers of the geometry;
+ * hits on other layers are skipped <br>
+ * (default parameter value : empty) <br>
  * <br>
  */
 class MuonCVXDDigitiser : public Processor
@@ -130,15 +147,9 @@ public:
 
 protected:
 
-    int _nRun;
-    int _nEvt;
-    int _debug;
-    int _totEntries;
     std::string _subDetName;
     bool isBarrel{false};
     bool isVertex{false};
-    bool isInnerTracker{false};
-    bool isOuterTracker{false};
 
     // input/output collections
     std::string _colName;
@@ -175,41 +186,27 @@ protected:
     std::vector<int> _layerIDs;
 
     // charge discretization
-    std::vector<double> _DigitizedBins{};
+    std::vector<std::vector<double>> _DigitizedBins{};  // one bin table per layer
     
     // geometry
     int _numberOfLayers;
-    std::vector<int>   _laddersInLayer{};
-    int _zSegmented;
-    std::vector<int>   _sensorsPerLadder{};
-    std::vector<float> _layerRadius{};
     std::vector<float> _layerThickness{};
     std::vector<float> _layerHalfThickness{};
-    std::vector<float> _layerLadderLength{};
-    std::vector<float> _layerLadderHalfWidth{};
-    std::vector<float> _layerPhiOffset{};
-    std::vector<float> _layerActiveSiOffset{};
-    std::vector<float> _layerHalfPhi{};
-    std::vector<float> _layerLadderWidth{};
-    // endcap specific
-    std::vector<float> _layerPetalLength{};
-    std::vector<float> _petalsInLayer{};
-    std::vector<float> _layerPetalInnerWidth{};
-    std::vector<float> _layerPetalOuterWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
+    // Half-lengths along u and v (mm) of the sensitive area of each sensor, by cell ID.
+    // The pixel matrix covers the sensor the hit is on: the ladder and petal dimensions
+    // of the layer do not match all the sensors (e.g. tracker endcap modules).
+    std::unordered_map<unsigned long, std::pair<double, double>> _sensorHalfLengths{};
 
     // internal state
+    double _sensorHalfLengthU{0};
+    double _sensorHalfLengthV{0};
     int _currentLayer;
     int _currentLadder;
     int _numberOfSegments;
     double _currentParticleMass;
     double _currentParticleMomentum;
-    double _currentPhi;
     double _eSum;
-    double _segmentDepth;
-    double _currentLocalPosition[3];
-    double _currentEntryPoint[3];
-    double _currentExitPoint[3];
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
     MyG4UniversalFluctuationForSi *_fluctuate;

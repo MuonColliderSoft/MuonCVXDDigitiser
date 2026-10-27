@@ -1,8 +1,10 @@
 #include "MuonCVXDDigitiser.h"
+#include "ChargeDigitizationBins.h"
 
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
 #include <UTIL/CellIDEncoder.h>
@@ -14,6 +16,8 @@
 #include "DDRec/DetectorData.h"
 #include "DD4hep/DD4hepUnits.h"
 #include "gsl/gsl_sf_erf.h"
+// Also brings the float overloads of ceil() into the global namespace: the time digitization
+// relies on them, and removing the include changes the digitized times in the last bit
 #include "gsl/gsl_math.h"
 #include "CLHEP/Random/RandGauss.h"
 #include "CLHEP/Random/RandPoisson.h" 
@@ -36,11 +40,40 @@ using dd4hep::rec::Vector3D;
 
 MuonCVXDDigitiser aMuonCVXDDigitiser;
 
+namespace {
+// Half-lengths along u and v (mm) of the sensitive area of a surface, centred on its origin:
+// from the outline of the surface when available, which also covers non-rectangular surfaces
+// (e.g. the trapezoidal petals of the vertex endcap), from its lengths along u and v otherwise
+std::pair<double, double> sensorHalfLengths(const ISurface& surface)
+{
+    std::pair<double, double> half(0.5 * surface.length_along_u() / dd4hep::mm,
+                                   0.5 * surface.length_along_v() / dd4hep::mm);
+    auto* volSurface = dynamic_cast<const dd4hep::rec::Surface*>(&surface);
+    if (!volSurface) return half;
+    const auto lines = const_cast<dd4hep::rec::Surface*>(volSurface)->getLines();
+    if (lines.empty()) return half;
+
+    const Vector3D origin = surface.origin();
+    const Vector3D u = surface.u();
+    const Vector3D v = surface.v();
+    double halfU = 0;
+    double halfV = 0;
+    for (const auto& line : lines) {
+        for (const Vector3D& point : {line.first, line.second}) {
+            const Vector3D d = point - origin;
+            halfU = std::max(halfU, std::abs(d.dot(u)));
+            halfV = std::max(halfV, std::abs(d.dot(v)));
+        }
+    }
+    // Rounded to 1 nm, so that rounding errors of the outline do not shift the pixel grid
+    half.first = std::round(halfU / dd4hep::mm * 1e6) / 1e6;
+    half.second = std::round(halfV / dd4hep::mm * 1e6) / 1e6;
+    return half;
+}
+}
+
 MuonCVXDDigitiser::MuonCVXDDigitiser() :
     Processor("MuonCVXDDigitiser"),
-    _nRun(0),
-    _nEvt(0),
-    _totEntries(0),
     _map(nullptr),
     _currentLayer(0),
     _fluctuate(nullptr)
@@ -185,10 +218,6 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "ID of layers of subdetector",
                                _layerIDs,
                                {});
-    registerProcessorParameter("ZSegmented",
-                               "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on.",
-                               _zSegmented,
-                               -1);
 }
 void MuonCVXDDigitiser::init()
 { 
@@ -207,18 +236,12 @@ void MuonCVXDDigitiser::init()
     // Determine if vertex, inner tracker, or outer tracker
     if (_subDetName.find("Vertex") != std::string::npos) {
       isVertex=true;
-    } else if (_subDetName.find("InnerTracker") != std::string::npos) {
-      isInnerTracker=true;
-    } else if (_subDetName.find("OuterTracker") != std::string::npos) {
-      isOuterTracker=true;
-    } else {
+    } else if (_subDetName.find("InnerTracker") == std::string::npos &&
+               _subDetName.find("OuterTracker") == std::string::npos) {
       std::stringstream err  ; err << " Could not determine sub-detector type for: " << _subDetName;
       throw Exception ( err.str() );
     }
 
-    _nRun = 0 ;
-    _nEvt = 0 ;
-    _totEntries = 0;
     _fluctuate = new MyG4UniversalFluctuationForSi();
 }
 
@@ -231,7 +254,6 @@ MuonCVXDDigitiser::~MuonCVXDDigitiser()
 }
 void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 { 
-    _nRun++ ;
     LoadGeometry() ;
 }
 void MuonCVXDDigitiser::LoadGeometry()
@@ -271,112 +293,46 @@ void MuonCVXDDigitiser::LoadGeometry()
                                  << _subDetName << " in SurfaceManager " ;
       throw Exception( err.str() ) ;
     }
-    // Resolve the ZSegmented tri-state. Auto (< 0) reproduces the geometry-derived
-    // behaviour: only the vertex barrel is segmented along z.
-    bool zSegmented = (_zSegmented < 0) ? (isVertex && isBarrel) : (_zSegmented > 0 && isBarrel);
-    streamlog_out(DEBUG5) << "Z-segmentation " << (zSegmented ? "enabled" : "disabled")
-                          << " (ZSegmented=" << _zSegmented << ")" << std::endl;
-
-    _laddersInLayer.resize(_numberOfLayers);
-    if(zSegmented)
-      _sensorsPerLadder.resize(_numberOfLayers);
-    _layerHalfPhi.resize(_numberOfLayers);
-    _layerHalfThickness.resize(_numberOfLayers);
+    _sensorHalfLengths.clear();
+    _sensorHalfLengths.reserve(_map->size());
+    for (const auto& [cellID, surface] : *_map)
+      _sensorHalfLengths.emplace(cellID, sensorHalfLengths(*surface));
+    // Sensor thickness of each layer, converted from cm to mm
     _layerThickness.resize(_numberOfLayers);
-    _layerRadius.resize(_numberOfLayers);
-    _layerLadderLength.resize(_numberOfLayers);
-    _layerLadderWidth.resize(_numberOfLayers);
-    _layerLadderHalfWidth.resize(_numberOfLayers);
-    _layerActiveSiOffset.resize(_numberOfLayers);
-    _layerPhiOffset.resize(_numberOfLayers);
-    _petalsInLayer.resize(_numberOfLayers);
-    _layerPetalLength.resize(_numberOfLayers);
-    _layerPetalInnerWidth.resize(_numberOfLayers);
-    _layerPetalOuterWidth.resize(_numberOfLayers);
-    int curr_layer = 0;
-    if (isBarrel) {
-      for(ZPlanarData::LayerLayout z_layout : barrelLayers)
-	{
-	  // ALE: Geometry is in cm, convert all lenght in mm
-	  _laddersInLayer[curr_layer] = z_layout.ladderNumber;
-	  _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
-	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
-	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
-	  _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
-	  if(zSegmented){ //Zsegmented layers
-	    _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
-	    _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
-          }
-          else
-            _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
-          if ((isInnerTracker==1 || isOuterTracker==1) && z_layout.lengthSensor==0) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
-	  _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;	  
-	  _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
-	  _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
-	  _layerPhiOffset[curr_layer] = z_layout.phi0;
-	  
-	  curr_layer++;
-	}
-    } else {
-      // TODO.. fill info necessary for endcap
-      for (ZDiskPetalsData::LayerLayout z_layout : endcapLayers)
-	{
-	  // see /opt/ilcsoft/muonc/lcgeo/v00-18-01-MC/detector/tracker/VertexEndcap_o1_v06_geo.cpp, L144+
-	  // for how the endcap (VXD) geometry is built
-	  // Note: petal-like structure but current geometry only defines a single sensitive element for the whole disk afaics.
-	  // The structure is defined in /opt/ilcsoft/muonc/DD4hep/v01-25-01/DDRec/include/DDRec/DetectorData.h
-
-	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
-	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
-
-	  _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
-
-	  _layerPetalInnerWidth[curr_layer] = z_layout.widthInnerSensitive * dd4hep::cm / dd4hep::mm ;
-      _layerPetalOuterWidth[curr_layer] = z_layout.widthOuterSensitive * dd4hep::cm / dd4hep::mm ;
-      _petalsInLayer[curr_layer] = z_layout.petalNumber;
-      if (_layerPetalOuterWidth[curr_layer] == 0){
-        float outerEndcapRadius = 112.0 * dd4hep::cm / dd4hep::mm ;// FIX find source
-        _layerPetalOuterWidth[curr_layer] = 2 * outerEndcapRadius * std::tan(M_PI/_petalsInLayer[curr_layer]);
-      }
-	  //_layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
-	  //_layerPhiOffset[curr_layer] = z_layout.phi0;
-	
-	  curr_layer++;
-	}
+    _layerHalfThickness.resize(_numberOfLayers);
+    for (int i = 0; i < _numberOfLayers; ++i)
+    {
+        double thickness = isBarrel ? barrelLayers[i].thicknessSensitive : endcapLayers[i].thicknessSensitive;
+        _layerThickness[i] = thickness * dd4hep::cm / dd4hep::mm;
+        _layerHalfThickness[i] = 0.5 * _layerThickness[i];
     }
 
     PrintGeometryInfo();
 
-    // Bins for charge discretization
-    // FIXME: Will move to assign more dynamically 
-    if (_ChargeDigitizeNumBits == 3) _DigitizedBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
-    
-    //  Here is the updated version of the _DigitizedBins w/ 4 bits
-    if (_ChargeDigitizeNumBits == 4) _DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
-    
-    if (_ChargeDigitizeNumBits == 5) _DigitizedBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
-    if (_ChargeDigitizeNumBits == 6) _DigitizedBins = {500, 542, 572, 601, 629, 661, 692, 721, 750, 779, 812, 842, 877, 913, 946, 981, 1016, 1051, 1087, 1121, 1161, 1196, 1237, 1275, 1313, 1350, 1391, 1431, 1468, 1514, 1560, 1606, 1646, 1687, 1733, 1777, 1821, 1872, 1920, 1976, 2036, 2091, 2145, 2213, 2272, 2337, 2411, 2488, 2573, 2651, 2739, 2834, 2938, 3053, 3194, 3356, 3532, 3764, 4034, 4379, 4907, 5698, 6957, 9636};
-    if (_ChargeDigitizeNumBits == 8) _DigitizedBins = {500, 511, 523, 533, 542, 550, 556, 564, 570, 577, 585, 592, 598, 603, 610, 617, 624, 630, 638, 646, 654, 661, 668, 676, 684, 691, 699, 705, 712, 719, 724, 731, 738, 745, 752, 760, 767, 772, 780, 787, 795, 802, 810, 818, 826, 832, 839, 847, 856, 865, 874, 881, 889, 898, 906, 916, 924, 930, 938, 945, 955, 965, 971, 978, 986, 995, 1004, 1012, 1019, 1027, 1036, 1044, 1053, 1062, 1071, 1079, 1088, 1096, 1104, 1112, 1121, 1131, 1139, 1149, 1158, 1168, 1175, 1184, 1193, 1203, 1211, 1221, 1233, 1241, 1249, 1259, 1268, 1277, 1286, 1294, 1303, 1313, 1321, 1330, 1338, 1348, 1357, 1368, 1378, 1387, 1395, 1406, 1417, 1426, 1434, 1445, 1452, 1460, 1470, 1480, 1492, 1503, 1514, 1525, 1536, 1550, 1560, 1570, 1580, 1592, 1604, 1614, 1623, 1634, 1644, 1653, 1662, 1673, 1684, 1695, 1707, 1717, 1727, 1737, 1747, 1759, 1769, 1780, 1790, 1800, 1812, 1823, 1835, 1846, 1860, 1873, 1885, 1897, 1907, 1918, 1931, 1943, 1958, 1971, 1987, 2000, 2014, 2026, 2041, 2056, 2068, 2080, 2095, 2108, 2119, 2131, 2147, 2162, 2180, 2195, 2213, 2224, 2238, 2256, 2269, 2284, 2300, 2314, 2332, 2351, 2366, 2383, 2401, 2421, 2440, 2458, 2475, 2496, 2519, 2538, 2559, 2581, 2601, 2618, 2636, 2658, 2681, 2703, 2722, 2742, 2767, 2791, 2811, 2836, 2857, 2884, 2913, 2938, 2967, 2995, 3023, 3052, 3086, 3119, 3153, 3188, 3221, 3270, 3304, 3342, 3390, 3428, 3473, 3515, 3556, 3611, 3691, 3742, 3801, 3857, 3928, 3999, 4069, 4141, 4220, 4325, 4417, 4518, 4655, 4789, 4965, 5141, 5359, 5548, 5770, 6017, 6311, 6584, 7024, 7492, 8060, 8740, 9738, 11450, 14878, 23973};
-
-    // shift digitized bins for inner and outer tracker by factor of 2
-    // this adjusts for the fact that the resolution is 2x worse for inner and outer tracker
-    if (!isVertex) {
-        streamlog_out(DEBUG5) << "Subdetector is: " << _subDetName << std::endl;
-        float shift = 500.; // first bin
-        float scalefactor = 2.; 
-        for (int i = 0; i < (int)_DigitizedBins.size(); i++){
-            _DigitizedBins[i] = (_DigitizedBins[i] - _DigitizedBins[0]) * scalefactor + shift;
+    // Bins for charge discretization, one table per layer: LoadGeometry() runs before any
+    // hit is read, so the choice has to be made for every layer up front
+    _DigitizedBins.resize(_numberOfLayers);
+    for (int i = 0; i < _numberOfLayers; ++i)
+    {
+        _DigitizedBins[i] = chargeDigitizationBins(_ChargeDigitizeNumBits, isVertex, _layerThickness[i]);
+        if (_DigitizedBins[i].empty())
+        {
+            streamlog_out(WARNING) << "No charge digitization bins defined for "
+                                   << _ChargeDigitizeNumBits << " bits; variable binning is unusable"
+                                   << " for layer " << i << std::endl;
+            continue;
         }
+        streamlog_out(DEBUG5) << "Layer " << i << ": sensor thickness " << _layerThickness[i]
+                              << " mm, " << _DigitizedBins[i].size() << " charge bins, first/last = "
+                              << _DigitizedBins[i].front() << "/" << _DigitizedBins[i].back() << std::endl;
     }
 } 
 
 void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 { 
-    //SP. few TODO items:
+    // TODO:
     // - include noisy pixels (calculate rate from gaussian with unit sigma integral x > _electronicNoise / _threshold )
     // - change logic in creating pixels from all SimTrkHits, then cluster them (incl. timing info)
-    // - include threshold dispersion effects
-    // - add digi parametrization for time measurement
     // - change position determination of cluster to analog cluster (w-avg of corner hits)
     if (!_map){
         LoadGeometry() ;
@@ -483,20 +439,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             recoHit->setCellID0( cellid0 );
             recoHit->setCellID1( cellid1 );
             
-            double localPos[3];
-            double localIdx[3];
-            double localDir[3];
-            FindLocalPosition(simTrkHit, localPos, localDir);
-            localIdx[0] = localPos[0] / _pixelSizeX;
-            localIdx[1] = localPos[1] / _pixelSizeY;
-            float incidentPhi = std::atan(localDir[0] / localDir[2]);
-            float incidentTheta = std::atan(localDir[1] / localDir[2]);
-
             // Debug messages to check if reconstruction went correctly
             // true global
             streamlog_out (DEBUG9) << "- TRUE GLOBAL position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
-            // true local (compare two verions)
-            streamlog_out (DEBUG9) << "- TRUE LOCAL position (localPos) (mm) x,y,z,t = " << localPos[0] << ", " << localPos[1] << ", " << localPos[2] << std::endl;
             // reco local 
             streamlog_out (DEBUG9) << "- RECO LOCAL position (mm) x,y,z,t = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << std::endl;
             
@@ -532,12 +477,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             rel->setWeight( 1.0 );
             relCol->addElement(rel);
             streamlog_out (DEBUG7) << "Reconstructed pixel cluster:" << std::endl;
-            streamlog_out (DEBUG7) << "- local position (x,y) = " << localPos[0] << "(Idx: " << localIdx[0] << "), " << localPos[1] << "(Idy: " << localIdx[1] << ")" << std::endl;
-            streamlog_out( DEBUG5 ) << "(reco local) - (true local) (x,y,z): " << localPos[0] - _currentLocalPosition[0] << ", " << localPos[1] - _currentLocalPosition[1] << ", " << localPos[2] - _currentLocalPosition[2] << std::endl;
             streamlog_out (DEBUG7) << "- global position (x,y,z, t) = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << ", " << recoHit->getTime() << std::endl;
             streamlog_out (DEBUG7) << "- (reco global (x,y,z,t)) - (true global) = " << recoHit->getPosition()[0] - simTrkHit->getPosition()[0]<< ", " << recoHit->getPosition()[1] - simTrkHit->getPosition()[1] << ", " << recoHit->getPosition()[2] - simTrkHit->getPosition()[2]<< ", " << recoHit->getTime() - simTrkHit->getTime()<< std::endl;
             streamlog_out (DEBUG7) << "- charge = " << recoHit->getEDep() << "(True: " << simTrkHit->getEDep() << ")"  << std::endl;
-            streamlog_out (DEBUG7) << "- incidence angles: theta = " << incidentTheta << ", phi = " << incidentPhi << std::endl;
             if (_produceFullPattern != 0)
             {
               // Store all the fired points
@@ -553,13 +495,11 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                    // hit's layer/ladder position is the same for all fired points 
                    newsth->setCellID0( cellid0 );
                    newsth->setCellID1( cellid1 );
-                   //Store local position in units of pixels instead
-                   const double *sLab;
-                   //TransformToLab(cellid0, sth->getPosition(), sLab);
-                   sLab = sth->getPosition();
+                   // Store the local position in units of pixels
+                   const double *localPos = sth->getPosition();
                    double pixelPos[3];
-                   pixelPos[0] = sLab[0] / _pixelSizeX;
-                   pixelPos[1] = sLab[1] / _pixelSizeY;
+                   pixelPos[0] = localPos[0] / _pixelSizeX;
+                   pixelPos[1] = localPos[1] / _pixelSizeY;
                    newsth->setPosition(pixelPos);
                    newsth->setEDep(charge); // in unit of electrons
                    newsth->setTime(sth->getTime());
@@ -606,7 +546,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     }
     streamlog_out(DEBUG9) << " Done processing event: " << evt->getEventNumber() 
         << "   in run:  " << evt->getRunNumber() << std::endl ;
-    _nEvt ++ ;
 }
 void MuonCVXDDigitiser::check(LCEvent *evt)
 {}
@@ -632,7 +571,16 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     const int cellID0 = hit->getCellID0() ;
     streamlog_out( DEBUG3 ) << "Cell ID of Sim Hit: " << cellID0 << std::endl;
     SurfaceMap::const_iterator sI = _map->find( cellID0 ) ;
+    if (sI == _map->end()) {
+      streamlog_out( WARNING ) << "No surface found for cell ID " << cellID0 << ": hit skipped" << std::endl;
+      _currentLayer = -1;
+      return;
+    }
     const dd4hep::rec::ISurface* surf = sI->second ;
+    // The pixel matrix covers the sensor the hit is on
+    const auto& halfLengths = _sensorHalfLengths.at( sI->first );
+    _sensorHalfLengthU = halfLengths.first;
+    _sensorHalfLengthV = halfLengths.second;
     Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
     // We need it?
     if ( ! surf->insideBounds( dd4hep::mm * oldPos ) ) {
@@ -682,9 +630,6 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     localDirection[0] = Momentum * surf->u();
     localDirection[1] = Momentum * surf->v();
     localDirection[2] = Momentum * surf->normal();
-    if (isBarrel){
-    _currentPhi = _currentLadder * 2.0 * _layerHalfPhi[_currentLayer] + _layerPhiOffset[_currentLayer];
-    }
 }
 void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 {
@@ -705,12 +650,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
         exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
     }
-    for (int i = 0; i < 3; ++i) {
-        _currentLocalPosition[i] = pos[i];
-        _currentEntryPoint[i] = entry[i];
-        _currentExitPoint[i] = exit[i];
-    }
-    streamlog_out( DEBUG5 ) << "local position: " << _currentLocalPosition[0] << ", " << _currentLocalPosition[1] << ", " << _currentLocalPosition[2] << std::endl;
+    streamlog_out( DEBUG5 ) << "local position: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
     double tanx = dir[0] / dir[2];
     double tany = dir[1] / dir[2];  
     
@@ -725,14 +665,14 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     _eSum = 0.0;
     // TODO _segmentLength may be different from segmentLength, is it ok?
     double segmentLength = trackLength / ((double)_numberOfSegments);
-    _segmentDepth = _layerThickness[_currentLayer] / ((double)_numberOfSegments);
-    double z = -_layerHalfThickness[_currentLayer] - 0.5 * _segmentDepth;
+    const double segmentDepth = _layerThickness[_currentLayer] / ((double)_numberOfSegments);
+    double z = -_layerHalfThickness[_currentLayer] - 0.5 * segmentDepth;
     
     double hcharge = ( hit->getEDep() / dd4hep::GeV ); 	
     streamlog_out (DEBUG5) << "Number of ionization points: " << _numberOfSegments << ", G4 EDep = "  << hcharge << std::endl;
     for (int i = 0; i < _numberOfSegments; ++i)
     {
-        z += _segmentDepth;
+        z += segmentDepth;
         double x = pos[0] + tanx * (z - pos[2]);
         double y = pos[1] + tany * (z - pos[2]);
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
@@ -794,8 +734,6 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
         //  => _diffusionCoefficient = 0.04-0.07
         // and diffusion sigma = _diffusionCoefficient * DistanceToPlane
         // e.g. fot 50um diffusion sigma = 2.1 - 3.7 um
-        //double DriftLength = DistanceToPlane * sqrt(1.0 + pow(_tanLorentzAngleX, 2) 
-        //                                                + pow(_tanLorentzAngleY, 2));
         double SigmaDiff = DistanceToPlane * _diffusionCoefficient;
         double SigmaX = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleX, 2));
         double SigmaY = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleY, 2));
@@ -954,16 +892,15 @@ void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
 void MuonCVXDDigitiser::ApplyThreshold(SimTrackerHitImplVec &simTrkVec)
 {
    streamlog_out (DEBUG6) << "Applying threshold" << std::endl;
-   float actualThreshold = _threshold;
-   
    for (int i = 0; i < (int)simTrkVec.size(); ++i)
    {
      SimTrackerHitImpl *hit = simTrkVec[i];
-     
+
      double smear = 0;
      float origCharge = hit->getEDep();
+     // Each pixel has its own threshold, smeared around the nominal one
      if (_thresholdSmearSigma > 0) smear = RandGauss::shoot(0., _thresholdSmearSigma);
-     actualThreshold = actualThreshold + smear;
+     float actualThreshold = _threshold + smear;
      if (hit->getEDep() <= actualThreshold) hit->setEDep(0.0);
      
      streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2]
@@ -981,7 +918,6 @@ void MuonCVXDDigitiser::ChargeDigitizer(SimTrackerHitImplVec &simTrkVec)
   
   float minThreshold = _threshold;
   float maxThreshold = _chargeMax;
-  //int split = 0.3; -- future use
   int numBins = pow(2, _ChargeDigitizeNumBits)-1;
   double discCharge=-999; 
   for (int i = 0; i < (int)simTrkVec.size(); ++i) {
@@ -1000,15 +936,16 @@ void MuonCVXDDigitiser::ChargeDigitizer(SimTrackerHitImplVec &simTrkVec)
         }
         case 1: { // variable binning
 	        if (origCharge < 1.0) break;
+	        const std::vector<double>& bins = _DigitizedBins[_currentLayer];
 	        int binVal=-1;
-	        for(unsigned int idx = 0; idx < _DigitizedBins.size()-1; idx++) {
-	            if (_DigitizedBins[idx+1] > origCharge) {
+	        for(unsigned int idx = 0; idx < bins.size()-1; idx++) {
+	            if (bins[idx+1] > origCharge) {
 		            binVal = idx;
 		            break;
 	            }
             }
-	        if (binVal < 0) discCharge = (_DigitizedBins[_DigitizedBins.size()-2] + _DigitizedBins[_DigitizedBins.size()-1]) / 2;
-	        else discCharge = (_DigitizedBins[binVal] + _DigitizedBins[binVal+1]) / 2;
+	        if (binVal < 0) discCharge = (bins[bins.size()-2] + bins[bins.size()-1]) / 2;
+	        else discCharge = (bins[binVal] + bins[binVal+1]) / 2;
 	        break;
 	    }
     }
@@ -1093,8 +1030,7 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
     streamlog_out (DEBUG6) << "Creating reconstructed cluster" << std::endl;
     double time = 0; //average time
 
-    /* Get extreme positions, currently only implemented for barrel */
-    /* Calculate the mean */
+    /* Get the extreme positions, the charge and the mean time of the cluster */
     for (size_t iHit=0; iHit < simTrkVec.size(); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
@@ -1182,21 +1118,9 @@ void MuonCVXDDigitiser::TransformToLab(const int cellID, const double *xLoc, dou
  */
 void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & iy)
 {
-    int layer = _currentLayer;
-    // Shift all of L/2 so that all numbers are positive
-    if (isBarrel){
-        double yInLadder = y + _layerLadderLength[layer] / 2;
-        iy = int(yInLadder / _pixelSizeY);
-        double xInLadder = x + _layerLadderHalfWidth[layer];
-        ix = int(xInLadder / _pixelSizeX);
-    }
-    else{
-        double yInPetal = y + _layerPetalLength[layer] / 2;
-        iy = int(yInPetal / _pixelSizeY);
-        //double localwidth = (_layerPetalOuterWidth[layer] - _layerPetalInnerWidth[layer])/(_layerPetalLength[layer]) * yInPetal;
-        double xInPetal = x + _layerPetalOuterWidth[layer]/2;
-        ix = int(xInPetal / _pixelSizeX);
-    }
+    // Shift by half the sensor length so that all numbers are positive
+    iy = int((y + _sensorHalfLengthV) / _pixelSizeY);
+    ix = int((x + _sensorHalfLengthU) / _pixelSizeX);
 }
 /**
  Function calculates position in the local frame 
@@ -1204,34 +1128,20 @@ void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & 
 */
 void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double & y)
 {
-    int layer = _currentLayer;
     // Put the point in the cell center
-    if (isBarrel){
-        y = ((0.5 + double(iy)) * _pixelSizeY) - _layerLadderLength[layer] / 2;
-        x = ((0.5 + double(ix)) * _pixelSizeX) - _layerLadderHalfWidth[layer];
-    }
-    else {
-        y = ((0.5 + double(iy)) * _pixelSizeY) - _layerPetalLength[layer] / 2;
-        x = ((0.5 + double(ix)) * _pixelSizeX) - _layerPetalOuterWidth[layer] /2;
-    }
+    y = ((0.5 + double(iy)) * _pixelSizeY) - _sensorHalfLengthV;
+    x = ((0.5 + double(ix)) * _pixelSizeX) - _sensorHalfLengthU;
 }
-int MuonCVXDDigitiser::GetPixelsInaColumn() //SP: why columns!?! I would have guess row..
+// Number of pixels along u (x) of the current sensor. The tolerance keeps a sensor that is a
+// whole number of pixels from getting an extra one from rounding errors.
+int MuonCVXDDigitiser::GetPixelsInaColumn()
 {
-    if (isBarrel){
-        return ceil(_layerLadderWidth[_currentLayer] / _pixelSizeX);
-    }
-    else{
-        return ceil(_layerPetalOuterWidth[_currentLayer]/ _pixelSizeX);
-    }
+    return std::ceil(2 * _sensorHalfLengthU / _pixelSizeX - 1e-6);
 }
+// Number of pixels along v (y) of the current sensor
 int MuonCVXDDigitiser::GetPixelsInaRow()
 {
-    if (isBarrel){
-        return ceil(_layerLadderLength[_currentLayer] / _pixelSizeY);
-    }
-    else {
-        return ceil(_layerPetalLength[_currentLayer] / _pixelSizeY);
-    }
+    return std::ceil(2 * _sensorHalfLengthV / _pixelSizeY - 1e-6);
 }
 void MuonCVXDDigitiser::PrintGeometryInfo()
 {
@@ -1239,24 +1149,11 @@ void MuonCVXDDigitiser::PrintGeometryInfo()
     streamlog_out(MESSAGE) << "Pixel size X: " << _pixelSizeX << std::endl;
     streamlog_out(MESSAGE) << "Pixel size Y: " << _pixelSizeY << std::endl;
     streamlog_out(MESSAGE) << "Electrons per KeV: " << _electronsPerKeV << std::endl;
-    streamlog_out(MESSAGE) << "Segment depth: " << _segmentDepth << std::endl;
     for (int i = 0; i < _numberOfLayers; ++i) 
     {
         streamlog_out(MESSAGE) << "Layer " << i << std::endl;
-        streamlog_out(MESSAGE) << "  Number of ladders: " << _laddersInLayer[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Radius: " << _layerRadius[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Ladder length: " << _layerLadderLength[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Ladder width: "<< _layerLadderWidth[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Ladder half width: " << _layerLadderHalfWidth[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Phi offset: " << _layerPhiOffset[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Active Si offset: " << _layerActiveSiOffset[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Half phi: " << _layerHalfPhi[i] << std::endl;
         streamlog_out(MESSAGE) << "  Thickness: " << _layerThickness[i] << std::endl;
         streamlog_out(MESSAGE) << "  Half thickness: " << _layerHalfThickness[i] << std::endl;
-        //TODO: organize which get printed based on barrel/endcap
-        streamlog_out(MESSAGE) << "  Petal length: " << _layerPetalLength[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Petal Inner Width: " << _layerPetalInnerWidth[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Petal Outer Width: " << _layerPetalOuterWidth[i] << std::endl;
     }
 }
 //=============================================================================

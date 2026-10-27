@@ -18,11 +18,19 @@ parser.add_argument("input")
 parser.add_argument("output")
 parser.add_argument("steering")
 parser.add_argument("--subdet", action="append", help="only these sub-detectors (output prefix)")
-parser.add_argument("--set", action="append", default=[], metavar="NAME=VALUE",
-                    help="extra processor parameter, applied to every digitiser")
+parser.add_argument("--set", action="append", default=[], metavar="[PREFIX.]NAME=VALUE",
+                    help="extra processor parameter, applied to every digitiser, or only to the one "
+                         "of sub-detector PREFIX (e.g. VXDBarrel.LayerIDs=0 1 2)")
 args = parser.parse_args()
 
 extra = dict(s.split("=", 1) for s in args.set)
+# PREFIX.NAME applies to one sub-detector only
+common = {k: v for k, v in extra.items() if "." not in k}
+own = {}
+for k, v in extra.items():
+    if "." in k:
+        prefix, name = k.split(".", 1)
+        own.setdefault(prefix, {})[name] = v
 subdets = [s for s in SUBDETECTORS if not args.subdet or s[0] in args.subdet]
 
 processors = []
@@ -35,7 +43,8 @@ for prefix, subdet, collection, layer_ids, _ in subdets:
         "LayerIDs": " ".join(map(str, layer_ids)),
         "StoreFiredPixels": 1,
         **CONFIGS[args.config],
-        **extra,
+        **common,
+        **own.get(prefix, {}),
     }
     body = "\n".join(f'    <parameter name="{k}">{v}</parameter>' for k, v in params.items())
     processors.append(f'  <processor name="{prefix}Digitiser" type="MuonCVXDDigitiser">\n{body}\n  </processor>')

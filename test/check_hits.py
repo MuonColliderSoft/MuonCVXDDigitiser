@@ -2,6 +2,7 @@
 """Check a hit dump from dump_hits.py: sanity requirements, then agreement with a reference summary.
 
 Usage: check_hits.py <hits.csv> [--reference ref.json] [--write-reference ref.json]
+                     [--layers PREFIX=ID,ID,... ...]
 
 The reference holds the summary statistics of each sub-detector. A change that is meant to alter
 the output regenerates it with --write-reference, so the change shows up in the diff of the PR.
@@ -13,7 +14,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from hit_stats import summarise_dump  # noqa: E402
+from digi_common import layer_of  # noqa: E402
+from hit_stats import load_hits, summarise  # noqa: E402
 
 # Sanity requirements on every configuration
 # reconstructed hits / SimTrackerHits, with a margin below the values of master (the outer
@@ -38,10 +40,24 @@ parser = argparse.ArgumentParser()
 parser.add_argument("hits")
 parser.add_argument("--reference")
 parser.add_argument("--write-reference")
+parser.add_argument("--layers", action="append", default=[], metavar="PREFIX=ID,ID,...",
+                    help="the only layers (cell-ID layer field) expected to have hits in sub-detector "
+                         "PREFIX: hits on other layers fail, and the efficiency counts these layers only")
 args = parser.parse_args()
 
-summary, meta = summarise_dump(args.hits)
+hits, meta = load_hits(args.hits)
+layers = {p: {int(i) for i in ids.split(",")} for p, ids in (s.split("=", 1) for s in args.layers)}
 failures = []
+summary = {}
+for subdet, rows in sorted(hits.items()):
+    nsim = meta["nsim"].get(subdet, 0)
+    if subdet in layers:
+        by_layer = meta.get("nsim_by_layer", {}).get(subdet, {})
+        nsim = sum(n for layer, n in by_layer.items() if int(layer) in layers[subdet])
+        stray = sorted({layer_of(int(r["cellID"]) & 0xffffffff) for r in rows} - layers[subdet])
+        if stray:
+            failures.append(f"{subdet}: hits on layers {stray}, expected only on {sorted(layers[subdet])}")
+    summary[subdet] = summarise(rows, nsim)
 
 
 def fail(message):
