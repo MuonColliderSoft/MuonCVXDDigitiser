@@ -2,7 +2,7 @@
 """Check a hit dump from dump_hits.py: sanity requirements, then agreement with a reference summary.
 
 Usage: check_hits.py <hits.csv> [--reference ref.json] [--write-reference ref.json]
-                     [--layers PREFIX=ID,ID,... ...]
+                     [--layers PREFIX=ID,ID,... ...] [--time-bins PREFIX=BITS:TMAX ...]
 
 The reference holds the summary statistics of each sub-detector. A change that is meant to alter
 the output regenerates it with --write-reference, so the change shows up in the diff of the PR.
@@ -14,7 +14,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from digi_common import layer_of  # noqa: E402
+from digi_common import layer_of, pixel_times  # noqa: E402
 from hit_stats import load_hits, summarise  # noqa: E402
 
 # Sanity requirements on every configuration
@@ -43,6 +43,9 @@ parser.add_argument("--write-reference")
 parser.add_argument("--layers", action="append", default=[], metavar="PREFIX=ID,ID,...",
                     help="the only layers (cell-ID layer field) expected to have hits in sub-detector "
                          "PREFIX: hits on other layers fail, and the efficiency counts these layers only")
+parser.add_argument("--time-bins", action="append", default=[], metavar="PREFIX=BITS:TMAX",
+                    help="uniform time digitization of sub-detector PREFIX with TimeDigitizeNumBits BITS and "
+                         "TimeMaximum TMAX (ns): every fired-pixel time must be the centre of one of its bins")
 args = parser.parse_args()
 
 hits, meta = load_hits(args.hits)
@@ -62,6 +65,19 @@ for subdet, rows in sorted(hits.items()):
 
 def fail(message):
     failures.append(message)
+
+
+# Fired-pixel times on the bins of their own sub-detector: 2^BITS - 1 bins of TMAX / (2^BITS - 1)
+for prefix, spec in (s.split("=", 1) for s in args.time_bins):
+    bits, tmax = spec.split(":")
+    width = float(tmax) / (2 ** int(bits) - 1)
+    times = [t for r in hits.get(prefix, []) for t in pixel_times(r["pixels"])]
+    off = [t for t in times if not (0 < t < float(tmax)) or abs(t / width - 0.5 - round(t / width - 0.5)) > 1e-3]
+    if not times:
+        fail(f"{prefix}: no fired-pixel times to check")
+    elif off:
+        fail(f"{prefix}: {len(off)} of {len(times)} fired-pixel times not on the {width:.4g} ns bins, "
+             f"e.g. {off[0]:.6g} ns")
 
 
 if not summary:

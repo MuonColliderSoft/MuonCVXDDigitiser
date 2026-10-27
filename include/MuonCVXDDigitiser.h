@@ -95,8 +95,24 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 0) <br>
  * @param TimeMaximum dynamic range of the time measurement (in ns) <br>
  * (default parameter value : 10) <br>
- * @param TimeSmearingSigma Gaussian time resolution of each pixel (in ns), 0 to switch off <br>
+ * @param TimeSmearingSigma constant Gaussian time resolution of each pixel (in ns), used when
+ * TimeSmearingModel = 1 <br>
  * (default parameter value : 0.05) <br>
+ * @param TimeSmearingModel time smearing model: 0 = none, 1 = constant sigma taken from
+ * TimeSmearingSigma, 2 = realistic resolution derived from the sensor thickness <br>
+ * (default parameter value : 1) <br>
+ * @param SigmaLandau override for Landau sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaTimewalk override for timewalk sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaJitter override for jitter sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaTDC override for TDC sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaClock override for clock sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param TRise override for rise time <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
  * @param ElectronicEffects flag to switch on the Gaussian smearing of the signal by the electronic noise <br>
  * (default parameter value : 1) <br>
  * @param ElectronicNoise electronic noise (in electrons) <br>
@@ -181,9 +197,18 @@ protected:
     double _timeMax;
     int _TimeDigitizeBinning;
     double _timeSmearingSigma;
+    int _timeSmearingModel;
     int _electronicEffects;
     int _produceFullPattern;
     std::vector<int> _layerIDs;
+
+    // time digitization overrides
+    double _t_riseOverride;
+    double _sigma_landauOverride;
+    double _sigma_timewalkOverride;
+    double _sigma_jitterOverride;
+    double _sigma_TDCOverride;
+    double _sigma_clockOverride;
 
     // charge discretization
     std::vector<std::vector<double>> _DigitizedBins{};  // one bin table per layer

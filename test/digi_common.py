@@ -24,6 +24,13 @@ CONFIGS = {
     # Charge digitization: 3-bit table, uniform binning
     "bits3": {**NOSMEAR, "ChargeDigitizeNumBits": 3},
     "uniform": {**NOSMEAR, "ChargeDigitizeBinning": 0},
+    # Time smearing: realistic model, derived from the sensor thickness
+    "timing_realistic": {"TimeSmearingModel": 2},
+    # Realistic model with every term overridden: the timewalk alone is left, 0.1 * TRise = 0.1 ns,
+    # which must give the same hits as the constant model with a 0.1 ns sigma
+    "timing_overrides": {"TimeSmearingModel": 2, "TRise": 1.0, "SigmaLandau": 0, "SigmaJitter": 0,
+                         "SigmaTDC": 0, "SigmaClock": 0},
+    "timing_sigma100": {"TimeSmearingSigma": 0.1},
 }
 
 HIT_COLUMNS = ["subdet", "event", "cellID", "sim_x", "sim_y", "sim_z", "sim_t", "sim_edep", "px", "py", "pz",
@@ -36,5 +43,10 @@ def layer_of(cellid):
 
 
 def pixel_string(pixels):
-    """Fired pixels as 'x:y:charge;...', with x and y in pixel units and charge in electrons."""
-    return ";".join(f"{x:.1f}:{y:.1f}:{q:.0f}" for x, y, q in pixels)
+    """Fired pixels as 'x:y:charge:time;...': x and y in pixel units, charge in electrons, time in ns."""
+    return ";".join(f"{x:.1f}:{y:.1f}:{q:.0f}:{t:.9g}" for x, y, q, t in pixels)
+
+
+def pixel_times(pixels):
+    """Times of the fired pixels of a pixel_string."""
+    return [float(p.split(":")[3]) for p in pixels.split(";")] if pixels else []
