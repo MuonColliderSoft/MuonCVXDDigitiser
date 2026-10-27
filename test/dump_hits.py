@@ -61,7 +61,8 @@ with open(output_file, "w", newline="") as f:
                 writer.writerow([prefix, event.getEventNumber(), cellid(sim), sp[0], sp[1], sp[2], sim.getTime(),
                                  sim.getEDep(), sm[0], sm[1], sm[2], sim.getPathLength(), rp[0], rp[1], rp[2],
                                  reco.getTime(), reco.getEDep(), npix,
-                                 pixel_string((p.getPosition()[0], p.getPosition()[1], p.getEDep()) for p in fired)])
+                                 pixel_string((p.getPosition()[0], p.getPosition()[1], p.getEDep(), p.getTime())
+                                              for p in fired)])
             if pixels is not None and ipix != pixels.getNumberOfElements():
                 sys.exit(f"{prefix}: {ipix} raw hits but {pixels.getNumberOfElements()} fired pixels")
 reader.close()

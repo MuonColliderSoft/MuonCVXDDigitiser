@@ -88,6 +88,22 @@ add_digi_test(uniform uniform mu_gun_detailed)
 add_digi_test(skip_layer nosmear mu_gun_detailed --subdet VXDBarrel "--set=VXDBarrel.LayerIDs=0 1 2 4"
               CHECK_ARGS --layers VXDBarrel=0,1,2,4)
 
+# Realistic time smearing, derived from the sensor thickness
+add_digi_test(timing_realistic timing_realistic mu_gun_detailed)
+
+# Every parameter of the realistic model is used: with all terms overridden, it gives the same hits
+# as the constant model with the same sigma
+add_digi_run(timing_overrides timing_overrides mu_gun_detailed)
+add_digi_run(timing_sigma100 timing_sigma100 mu_gun_detailed)
+add_compare_test(timing_overrides timing_overrides timing_sigma100 --expect identical)
+
+# Two instances of the processor in one job with different time digitizations: each puts its
+# fired-pixel times on its own bins
+add_digi_test(time_bins nosmear mu_gun_detailed --subdet VXDBarrel --subdet VXDEndcap
+              --set=VXDBarrel.TimeDigitizeNumBits=4 --set=VXDBarrel.TimeMaximum=10
+              --set=VXDEndcap.TimeDigitizeNumBits=6 --set=VXDEndcap.TimeMaximum=5
+              CHECK_ARGS --time-bins VXDBarrel=4:10 --time-bins VXDEndcap=6:5)
+
 # Regenerate every reference from the outputs of the last ctest run:
 #   ctest && cmake --build . --target update_test_references
 add_custom_target(update_test_references ${reference_commands}
