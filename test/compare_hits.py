@@ -2,11 +2,13 @@
 """Compare two hit dumps from dump_hits.py hit by hit and in summary.
 
 Usage: compare_hits.py <a.csv> <b.csv> [--label TEXT] [--markdown FILE] [--expect identical]
-                       [--max-rel-diff METRIC=VALUE ...] [--differ-exit-code N]
+                       [--max-rel-diff METRIC=VALUE ...] [--expect-ratio METRIC=RATIO:TOL ...]
+                       [--differ-exit-code N]
 
 Hits are matched by event and SimTrackerHit cell ID and position. With --expect identical the
 script fails unless every hit is the same in both dumps; --max-rel-diff bounds the relative
-difference of a summary metric (e.g. mean_pixels=0.05) in every sub-detector. With
+difference of a summary metric (e.g. mean_pixels=0.05) in every sub-detector, and --expect-ratio
+the ratio B / A of a metric (e.g. mean_charge_keV=2:0.05, within 5 % of 2). With
 --differ-exit-code N, dumps that differ are not a failure but exit with code N, so that a caller
 can tell a difference from an error.
 """
@@ -26,12 +28,14 @@ parser.add_argument("--label", default="")
 parser.add_argument("--markdown", help="append the comparison as a Markdown table to this file")
 parser.add_argument("--expect", choices=["identical"])
 parser.add_argument("--max-rel-diff", action="append", default=[], metavar="METRIC=VALUE")
+parser.add_argument("--expect-ratio", action="append", default=[], metavar="METRIC=RATIO:TOL")
 parser.add_argument("--differ-exit-code", type=int, help="exit code when the dumps differ")
 args = parser.parse_args()
 
 hits_a, meta_a = load_hits(args.a)
 hits_b, meta_b = load_hits(args.b)
 limits = {k: float(v) for k, v in (s.split("=", 1) for s in args.max_rel_diff)}
+ratios = {k: tuple(map(float, v.split(":"))) for k, v in (s.split("=", 1) for s in args.expect_ratio)}
 
 header = ["sub-detector", "hits A", "hits B", "matched", "identical",
           "pixels A", "pixels B", "charge A (keV)", "charge B (keV)", "residual A (um)", "residual B (um)",
@@ -55,6 +59,11 @@ for subdet in sorted(set(hits_a) | set(hits_b)):
         old, new = sa[metric], sb[metric]
         if not abs(new - old) <= limit * abs(old):
             failures.append(f"{subdet}: {metric} {old:.4g} -> {new:.4g}, more than {limit:.0%} apart")
+    for metric, (ratio, tol) in ratios.items():
+        r = sb[metric] / sa[metric] if sa[metric] else float("nan")
+        print(f"{subdet}: {metric} ratio B / A = {r:.4f}")
+        if not abs(r - ratio) <= tol * ratio:
+            failures.append(f"{subdet}: {metric} ratio B / A = {r:.4f}, expected {ratio:g} within {tol:.0%}")
 
 if args.expect == "identical" and not all_identical:
     failures.append("the dumps are not identical")

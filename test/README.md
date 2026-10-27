@@ -30,6 +30,8 @@ To work offline, configure with `-DMUONCVXD_TEST_DATA_DIR=<folder with the sampl
 | `check_<name>` | Sanity requirements (finite values, fired pixels, efficiency, hits near their SimTrackerHit, residuals), then the summary statistics against `reference/<name>.json` |
 | `compare_reproducible` | The same configuration run twice gives identical hits |
 | `compare_timing_overrides` | The realistic time smearing with every term overridden gives the same hits as the constant model with the same sigma |
+| `compare_resim_ignores_geant4` | On a copy of the sample with the Geant4 deposit doubled and the path length halved (`make_scaled_sample`), the re-simulated ionisation trail gives identical hits |
+| `compare_geant4_charge_follows_deposit` | On the same copy, the Geant4 ionisation trail gives twice the charge |
 | `check_time_bins` | Two digitisers in one job with different time digitizations: every fired-pixel time is on the bins of its own digitiser |
 
 Only `libMarlinDD4hep` and this package are loaded: other plugins of the software stack crash when

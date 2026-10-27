@@ -104,6 +104,23 @@ add_digi_test(time_bins nosmear mu_gun_detailed --subdet VXDBarrel --subdet VXDE
               --set=VXDEndcap.TimeDigitizeNumBits=6 --set=VXDEndcap.TimeMaximum=5
               CHECK_ARGS --time-bins VXDBarrel=4:10 --time-bins VXDEndcap=6:5)
 
+# Ionisation trail re-simulated from the local direction and EnergyLoss
+add_digi_test(resim resim mu_gun_detailed)
+
+# The source of the ionisation trail, on a copy of the sample with the Geant4 deposit doubled and
+# the path length halved: the re-simulated trail takes neither from Geant4, so the hits are
+# identical; the Geant4 trail is anchored to the deposit, so the charge doubles (within 10 %: the
+# largest vertex pixel charges saturate the last bin of the 4-bit table, ratio 1.86 in the barrel).
+add_test(NAME make_scaled_sample
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scale_sim_hits.py ${data_dir}/mu_gun_detailed.slcio
+          ${data_dir}/mu_gun_scaled.slcio --edep 2 --path-length 0.5)
+set_tests_properties(make_scaled_sample PROPERTIES FIXTURES_REQUIRED TestData FIXTURES_SETUP ScaledSample)
+add_digi_run(resim_scaled resim mu_gun_scaled)
+add_digi_run(nosmear_scaled nosmear mu_gun_scaled)
+set_tests_properties(digi_resim_scaled digi_nosmear_scaled PROPERTIES FIXTURES_REQUIRED "TestData;ScaledSample")
+add_compare_test(resim_ignores_geant4 resim resim_scaled --expect identical)
+add_compare_test(geant4_charge_follows_deposit nosmear nosmear_scaled --expect-ratio mean_charge_keV=2:0.10)
+
 # Regenerate every reference from the outputs of the last ctest run:
 #   ctest && cmake --build . --target update_test_references
 add_custom_target(update_test_references ${reference_commands}
