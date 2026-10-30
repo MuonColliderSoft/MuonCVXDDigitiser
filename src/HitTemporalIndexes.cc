@@ -68,7 +68,7 @@ float HitTemporalIndexes::GetMinTime()
     float min_time { MAXTIME };
     for (auto item : htable)
     {
-        min_time = min(min_time, item.second->top()->getTime());
+        if (!item.second->empty()) min_time = min(min_time, item.second->top()->getTime());
     }
     return min_time;
 }
@@ -77,14 +77,15 @@ float HitTemporalIndexes::GetMinTime(int layer, int ladder)
 {
     int tkey = GetKey(layer, ladder);
     auto item = htable.find(tkey);
-    if (item != htable.end()) return item->second->top()->getTime();
+    if (item != htable.end() && !item->second->empty()) return item->second->top()->getTime();
     return MAXTIME;
 }
 
 int HitTemporalIndexes::GetKey(int layer, int ladder)
 {
     // TODO use cellID0 and/or cellID1
-    return layer * 1000 + ladder;
+    // The module field of tracker cell IDs exceeds 1000 (11 bits in MAIA)
+    return (layer << 16) + ladder;
 }
 
 float HitTemporalIndexes::MAXTIME { std::numeric_limits<float>::max() };

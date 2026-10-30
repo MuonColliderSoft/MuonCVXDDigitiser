@@ -35,29 +35,57 @@ set_tests_properties(fetch_test_data PROPERTIES FIXTURES_SETUP TestData)
 set(reference_commands "")
 
 # digi_<name>: run the digitiser with a configuration from digi_common.py on a sample.
-# Extra arguments are passed to make_steering.py (--subdet, --set NAME=VALUE).
+# Extra arguments are passed to make_steering.py (--processor, --subdet, --set NAME=VALUE).
+# The processor library is MuonCVXDDigitiser, or digi_target when the caller sets it.
 function(add_digi_run name config sample)
+  if(NOT digi_target)
+    set(digi_target MuonCVXDDigitiser)
+  endif()
   add_test(NAME digi_${name}
-    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_digi.sh $<TARGET_FILE:MuonCVXDDigitiser>
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_digi.sh $<TARGET_FILE:${digi_target}>
             ${config} ${data_dir}/${sample}.slcio ${out_dir}/${name} ${ARGN})
   set_tests_properties(digi_${name} PROPERTIES FIXTURES_REQUIRED TestData FIXTURES_SETUP Digi_${name})
 endfunction()
 
-# digi_<name> as above, then check_<name>: sanity requirements, and agreement with
-# reference/<name>.json. Arguments after CHECK_ARGS are passed to check_hits.py.
-function(add_digi_test name config sample)
-  cmake_parse_arguments(PARSE_ARGV 3 arg "" "" "CHECK_ARGS")
-  add_digi_run(${name} ${config} ${sample} ${arg_UNPARSED_ARGUMENTS})
-
+# check_<name>: sanity requirements on the output of digi_<name>, and agreement with
+# reference/<name>.json. Extra arguments are passed to check_hits.py (e.g. --layers).
+function(add_check_test name)
   add_test(NAME check_${name}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_hits.py ${out_dir}/${name}.csv
-            --reference ${reference_dir}/${name}.json ${arg_CHECK_ARGS})
+            --reference ${reference_dir}/${name}.json ${ARGN})
   set_tests_properties(check_${name} PROPERTIES FIXTURES_REQUIRED Digi_${name})
 
   set(reference_commands ${reference_commands}
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_hits.py ${out_dir}/${name}.csv
-              --write-reference ${reference_dir}/${name}.json ${arg_CHECK_ARGS}
+              --write-reference ${reference_dir}/${name}.json ${ARGN}
       PARENT_SCOPE)
+endfunction()
+
+# digi_<name> and check_<name>. Arguments after CHECK_ARGS are passed to check_hits.py.
+function(add_digi_test name config sample)
+  cmake_parse_arguments(PARSE_ARGV 3 arg "" "" "CHECK_ARGS")
+  add_digi_run(${name} ${config} ${sample} ${arg_UNPARSED_ARGUMENTS})
+  add_check_test(${name} ${arg_CHECK_ARGS})
+  set(reference_commands ${reference_commands} PARENT_SCOPE)
+endfunction()
+
+# digi_<name> with MuonCVXDRealDigitiser, on the barrel sub-detectors: it does not support endcaps.
+# Its hits keep their SimTrackerHits as raw hits, so mean_pixels is the number of SimTrackerHits
+# per cluster.
+function(add_real_digi_run name config sample)
+  set(digi_target MuonCVXDRealDigitiser)
+  add_digi_run(${name} ${config} ${sample} --processor MuonCVXDRealDigitiser
+               --subdet VXDBarrel --subdet ITBarrel --subdet OTBarrel ${ARGN})
+  # One OpenMP thread: the ladders of a layer are processed in parallel and share the CLHEP random
+  # engine, so the output is only reproducible single-threaded
+  set_tests_properties(digi_${name} PROPERTIES ENVIRONMENT "OMP_NUM_THREADS=1")
+endfunction()
+
+function(add_real_digi_test name config sample)
+  cmake_parse_arguments(PARSE_ARGV 3 arg "" "" "CHECK_ARGS")
+  add_real_digi_run(${name} ${config} ${sample} ${arg_UNPARSED_ARGUMENTS})
+  add_check_test(${name} ${arg_CHECK_ARGS})
+  set(reference_commands ${reference_commands} PARENT_SCOPE)
 endfunction()
 
 # compare_<name>: compare two digitisation outputs (options of compare_hits.py)
@@ -137,6 +165,12 @@ add_compare_test(ms_vs_nosmear_nodetail nosmear_nodetail ms_nodetail
 # up to ~20% between random sequences on this small sample. The resim test is defined above.
 add_digi_test(ms_resim ms_resim mu_gun_detailed)
 add_compare_test(ms_resim_vs_resim resim ms_resim --max-rel-diff mean_pixels=0.05 --max-rel-diff mean_charge_keV=0.05)
+
+# MuonCVXDRealDigitiser, with the trivial sensor model (default) and the RD53A front-end model
+add_real_digi_test(real default mu_gun_detailed)
+add_real_digi_test(real_rd53a default mu_gun_detailed --set SensorType=0)
+add_real_digi_run(real_repeat default mu_gun_detailed)
+add_compare_test(real_reproducible real real_repeat --expect identical)
 
 # Regenerate every reference from the outputs of the last ctest run:
 #   ctest && cmake --build . --target update_test_references

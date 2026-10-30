@@ -37,13 +37,13 @@ AbstractSensor::AbstractSensor( int layer,
     reset_simtable_at_once(true),
     simhit_table()
 {
-    int lwid = floor(ladderWidth * 1e4);
-    int psx = floor(pixelSizeX * 1e4);
-    int llen = floor(ladderLength * 1e4);
-    int psy = floor(pixelSizeY * 1e4);
-
-    l_rows = lwid / psx;
-    l_columns = llen / psy;
+    // The ladder must be a whole number of pixels, within 1 um: the lengths are floats, e.g. a
+    // 2528.4 mm ladder is stored as 2528.39990 mm, which truncating to 0.1 um units rejected
+    const double tolerance = 1e-3; // mm
+    l_rows = std::lround(ladderWidth / pixelSizeX);
+    l_columns = std::lround(ladderLength / pixelSizeY);
+    bool whole_pixels = std::abs(l_rows * pixelSizeX - ladderWidth) < tolerance
+                        and std::abs(l_columns * pixelSizeY - ladderLength) < tolerance;
 
     x_segnum = xsegmentNumber;
     y_segnum = ysegmentNumber;
@@ -51,9 +51,13 @@ AbstractSensor::AbstractSensor( int layer,
     s_rows = xsegmentNumber > 0 ? l_rows / xsegmentNumber : 1;
     s_colums = ysegmentNumber > 0 ? l_columns / ysegmentNumber : 1;
     
-    if (lwid % psx > 0 || llen % psy > 0)
+    if (!whole_pixels)
     {
         status = MatrixStatus::pixel_number_error;
+    }
+    else if (xsegmentNumber <= 0 || ysegmentNumber <= 0)
+    {
+        status = MatrixStatus::segment_number_error;
     }
     else if (l_rows % xsegmentNumber > 0 || l_columns % ysegmentNumber > 0)
     {
@@ -95,6 +99,11 @@ PixelData AbstractSensor::getPixel(int seg_x, int seg_y, int pos_x, int pos_y)
 
 bool AbstractSensor::checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
 {
+    // A position outside the sensor segment must not be read as a pixel of the next row or of the
+    // neighbouring segment
+    if (pos_x < 0 || pos_x >= s_rows || pos_y < 0 || pos_y >= s_colums)
+        return pstat == PixelStatus::out_of_bounds;
+
     return CheckStatus(SensorRowToLadderRow(seg_x, pos_x),
                         SensorColToLadderCol(seg_y, pos_y),
                         pstat);
@@ -113,7 +122,7 @@ BitField64 AbstractSensor::getBFEncoder()
 
 bool AbstractSensor::check(int x, int y)
 {
-    return (0 <= x and x < l_rows) and (0 <= y || y < l_columns);
+    return (0 <= x and x < l_rows) and (0 <= y and y < l_columns);
 }
 
 void AbstractSensor::InitHitRegister()

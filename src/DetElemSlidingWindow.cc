@@ -213,6 +213,11 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
 
     // ************************* Find local position **************************
     SurfaceMap::const_iterator sI = surf_map->find(hit->getCellID0()) ;
+    if (sI == surf_map->end())
+    {
+        streamlog_out(DEBUG6) << "  no surface found for cell ID " << hit->getCellID0() << std::endl;
+        return;
+    }
     const ISurface* surf = sI->second ;
 
     Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
