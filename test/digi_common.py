@@ -31,6 +31,8 @@ CONFIGS = {
     "timing_overrides": {"TimeSmearingModel": 2, "TRise": 1.0, "SigmaLandau": 0, "SigmaJitter": 0,
                          "SigmaTDC": 0, "SigmaClock": 0},
     "timing_sigma100": {"TimeSmearingSigma": 0.1},
+    # Ionisation trail re-simulated from the local direction and EnergyLoss, not from Geant4
+    "resim": {**NOSMEAR, "ResimulateIonisation": 1},
 }
 
 HIT_COLUMNS = ["subdet", "event", "cellID", "sim_x", "sim_y", "sim_z", "sim_t", "sim_edep", "px", "py", "pz",
