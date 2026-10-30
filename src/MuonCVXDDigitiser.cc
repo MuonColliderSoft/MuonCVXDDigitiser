@@ -705,8 +705,11 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     if (_doMultipleScattering && q_charge == 0.)
         streamlog_out( DEBUG6 ) << "Neutral particle, skipping multiple scattering" << std::endl;
 
-    // Hits with neither momentum nor MC particle cannot be scattered
-    if(_doMultipleScattering && q_charge > 0. && _currentParticleMomentum > 0.){
+    // Tracks running in the sensor plane do not cross it and are left unscattered, as are
+    // hits with neither momentum nor MC particle.
+    const bool msCrosses = std::fabs(dir[2]) > 1e-12 * std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+
+    if(_doMultipleScattering && q_charge > 0. && _currentParticleMomentum > 0. && msCrosses){
         streamlog_out( DEBUG6 ) << "Applying multiple scattering formula" << std::endl;
         //**************************************************************************
         //Multiple scattering implementation based on PDG formula (https://pdg.lbl.gov/2020/reviews/rpp2020-rev-passage-particles-matter.pdf)
@@ -725,9 +728,18 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         dir[0] /= mag;
         dir[1] /= mag;
         dir[2] /= mag;
+
+        // Step from the face the particle enters through: z = -halfT when it travels towards
+        // +z, z = +halfT when it travels towards -z. The entry point is on the straight line
+        // through the hit, the exit point is wherever the scattered track leaves the sensor.
+        const double zSign = (dir[2] >= 0.) ? 1. : -1.;
+        entry[2] = -zSign * 0.5 * sensorT;
+        exit[2]  =  zSign * 0.5 * sensorT;
         for (int i = 0; i < 2; ++i) {
-            entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
+            entry[i] = origPos[i] + dir[i] * (entry[2] - origPos[2]) / dir[2];
         }
+        for (int i = 0; i < 3; ++i) pos[i] = entry[i];
+        const double dirIn[3] = {dir[0], dir[1], dir[2]};
 
         double pathL_segment, theta_0_total, theta_0_slice, theta_plane_x, theta_plane_y;
         // Use fixed z-slice thickness for speed. The number of slices is pre-calculated
@@ -741,11 +753,15 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         double pathL_total = std::fabs(dir[2]) > 1e-12 ? sensorT / std::fabs(dir[2]) : sensorT;
         theta_0_total = (0.0136/(beta*p))*q_charge*std::sqrt(pathL_total/x_0)
                       * (1+0.038*std::log(pathL_total*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+        _msTotalScatteringAngle = theta_0_total;  // Store for later use in ionization placement
 
+        _msTrajectory.clear();
+        _msCumulativePath.clear();
+        _msTrajectory.push_back({pos[0], pos[1], pos[2]});  // Store entry point
+        _msCumulativePath.push_back(0.0);  // Cumulative path at entry = 0
+
+        bool crossedSensor = true;
         for (int islice = 0; islice < n_slices; ++islice) {
-            // Path length for this segment based on current direction
-            pathL_segment = z_segment / std::fabs(dir[2]);  // Will be adjusted if dir[2] ~0
-
             // --- Multiple scattering step ---
             // Distribute total theta_0 across slices: theta_RMS for each slice = theta_0_total / sqrt(n_slices)
             // We increment n_slices first to ensure we have the correct count before computing theta_0_slice
@@ -781,14 +797,38 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             double dirAvg[3] = {0.5 * (dirOld[0] + dir[0]),
                                 0.5 * (dirOld[1] + dir[1]),
                                 0.5 * (dirOld[2] + dir[2])};
+
+            // Each step advances exactly one slice in z, so the trajectory ends on the exit
+            // face and stays monotonic in z. Stop if the track turns back or runs along the
+            // sensor plane, or once the path exceeds MaxTrackLength.
+            double dzAvg = dirAvg[2] * zSign;
+            if (dzAvg < 1e-6) { crossedSensor = false; break; }
+            pathL_segment = z_segment / dzAvg;
+            if (_msCumulativePath.back() + pathL_segment > _maxTrkLen) { crossedSensor = false; break; }  // pathL_segment >= true step length
+
             pos[0] += dirAvg[0] * pathL_segment;
             pos[1] += dirAvg[1] * pathL_segment;
-            pos[2] += dirAvg[2] * pathL_segment;
+            pos[2] = (islice == n_slices - 1) ? exit[2] : pos[2] + zSign * z_segment;
 
+            _msTrajectory.push_back({pos[0], pos[1], pos[2]});
+            double segLen = pathL_segment * std::sqrt(dirAvg[0]*dirAvg[0] + dirAvg[1]*dirAvg[1] + dirAvg[2]*dirAvg[2]);
+            _msCumulativePath.push_back(_msCumulativePath.back() + segLen);
         }
-        //find final exit point
-        for (int i = 0; i < 2; ++i) {
-            exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
+        if (crossedSensor)
+        {
+            // Exit point: the end of the trajectory, on the exit face
+            for (int i = 0; i < 3; ++i) exit[i] = pos[i];
+        }
+        else
+        {
+            // The scattered track turned back or ran along the sensor plane: keep the
+            // unscattered straight line rather than a trail that does not cross the sensor.
+            streamlog_out( DEBUG5 ) << "Scattered track did not cross the sensor, multiple scattering not applied" << std::endl;
+            for (int i = 0; i < 3; ++i) dir[i] = dirIn[i];
+            for (int i = 0; i < 2; ++i)
+                exit[i] = origPos[i] + dir[i] * (exit[2] - origPos[2]) / dir[2];
+            _msTrajectory.clear();
+            _msCumulativePath.clear();
         }
     }
     //end of multiple scattering implementation
@@ -863,7 +903,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double segmentLength = trackLength / ((double)_numberOfSegments);
 
     // Place the trail as a straight segment along u, parametrised by the path coordinate s
-    // measured from the hit position.
+    // measured from the hit position. With multiple scattering the depths z of the points are
+    // kept and their x, y are taken from the kinked trajectory below.
     double sLo, sHi;
 
     if (resimulate)
@@ -905,12 +946,34 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         << ", trail from " << (resimulate ? "re-simulation" : "Geant4")
         << ", G4 EDep = "  << hcharge << std::endl;
 
+    // When multiple scattering was applied, place the ionisation points on the kinked trajectory.
+    // Skip if scattering angle is small (< 1 mrad) to avoid unnecessary interpolation overhead
+    bool useKinkedPath = (_doMultipleScattering && crossesPlane && _msTrajectory.size() > 1
+                          && _msTotalScatteringAngle > 1e-3);
+
     for (int i = 0; i < _numberOfSegments; ++i)
     {
         double sPath = sLo + (i + 0.5) * geomStep;
         double x = origPos[0] + sPath * u[0];
         double y = origPos[1] + sPath * u[1];
         double z = origPos[2] + sPath * u[2];
+
+        if (useKinkedPath)
+        {
+            // Same depth as on the straight trail, so the extent set above is kept and the point
+            // stays in the sensor; x and y interpolated on the trajectory, monotonic in z.
+            const std::vector<std::array<double, 3>>& traj = _msTrajectory;
+            const double zDir = (traj.back()[2] >= traj.front()[2]) ? 1. : -1.;
+            int k = 0;
+            while (k + 2 < (int)traj.size() && (z - traj[k + 1][2]) * zDir > 0.) ++k;
+            double dzTraj = traj[k + 1][2] - traj[k][2];
+            double t = (std::fabs(dzTraj) > 1e-12) ? (z - traj[k][2]) / dzTraj : 0.5;
+            t = std::max(0.0, std::min(1.0, t));  // clamp to the trajectory if it stopped early
+
+            x = traj[k][0] + t * (traj[k + 1][0] - traj[k][0]);
+            y = traj[k][1] + t * (traj[k + 1][1] - traj[k][1]);
+            z = traj[k][2] + t * dzTraj;
+        }
 
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV,
         // length in mm, meanLoss eloss in MeV.
@@ -952,6 +1015,10 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         streamlog_out (DEBUG3) << "- " << i << ": E=" << _ionisationPoints[i].eloss
             << ", x=" << _ionisationPoints[i].x << ", y=" << _ionisationPoints[i].y << ", z=" << _ionisationPoints[i].z << std::endl;
     }
+
+    // Clean up trajectory cache for next hit
+    _msTrajectory.clear();
+    _msCumulativePath.clear();
 }
 void MuonCVXDDigitiser::ProduceSignalPoints()
 {

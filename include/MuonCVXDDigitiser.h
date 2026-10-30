@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <array>
 
 #include "marlin/Processor.h"
 #include "lcio.h"
@@ -244,6 +245,9 @@ protected:
     double _currentParticleMass;
     double _currentParticleMomentum;
     double _eSum;
+    std::vector<std::array<double, 3>> _msTrajectory;
+    std::vector<double> _msCumulativePath;
+    double _msTotalScatteringAngle;
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
     MyG4UniversalFluctuationForSi *_fluctuate;

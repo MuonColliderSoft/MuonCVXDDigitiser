@@ -131,6 +131,13 @@ add_compare_test(ms_vs_nosmear nosmear ms --max-rel-diff mean_pixels=0.05 --max-
 add_compare_test(ms_vs_nosmear_nodetail nosmear_nodetail ms_nodetail
                  --max-rel-diff mean_pixels=0.10 --max-rel-diff mean_charge_keV=0.10)
 
+# Multiple scattering with the re-simulated ionisation trail, placed along the kinked trajectory
+# for the secondaries: the trail must stay in the sensor, so clusters stay close to the unscattered ones.
+# Residuals are only checked against the absolute limits of check_hits.py: their median moves by
+# up to ~20% between random sequences on this small sample. The resim test is defined above.
+add_digi_test(ms_resim ms_resim mu_gun_detailed)
+add_compare_test(ms_resim_vs_resim resim ms_resim --max-rel-diff mean_pixels=0.05 --max-rel-diff mean_charge_keV=0.05)
+
 # Regenerate every reference from the outputs of the last ctest run:
 #   ctest && cmake --build . --target update_test_references
 add_custom_target(update_test_references ${reference_commands}
