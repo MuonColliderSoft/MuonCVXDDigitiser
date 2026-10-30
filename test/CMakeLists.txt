@@ -121,6 +121,16 @@ set_tests_properties(digi_resim_scaled digi_nosmear_scaled PROPERTIES FIXTURES_R
 add_compare_test(resim_ignores_geant4 resim resim_scaled --expect identical)
 add_compare_test(geant4_charge_follows_deposit nosmear nosmear_scaled --expect-ratio mean_charge_keV=2:0.10)
 
+# Multiple scattering, with and without hit momentum. For 1-100 GeV muons the scattering in the
+# sensor is tiny, so cluster size and charge must stay close to the unscattered ones.
+add_digi_test(ms ms mu_gun_detailed)
+add_digi_test(ms_nodetail ms mu_gun_nodetail)
+add_compare_test(ms_vs_nosmear nosmear ms --max-rel-diff mean_pixels=0.05 --max-rel-diff mean_charge_keV=0.05)
+# The sample without hit momentum has 5 events (50-200 hits per sub-detector): the means are only
+# known to 3-6 %, hence the looser limits.
+add_compare_test(ms_vs_nosmear_nodetail nosmear_nodetail ms_nodetail
+                 --max-rel-diff mean_pixels=0.10 --max-rel-diff mean_charge_keV=0.10)
+
 # Regenerate every reference from the outputs of the last ctest run:
 #   ctest && cmake --build . --target update_test_references
 add_custom_target(update_test_references ${reference_commands}

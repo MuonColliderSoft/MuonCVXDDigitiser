@@ -227,6 +227,15 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "ID of layers of subdetector",
                                _layerIDs,
                                {});
+    registerProcessorParameter("DoMultipleScattering",
+                               "Flag to enable multiple scattering of the track inside the sensor.",
+                               _doMultipleScattering,
+                               0);
+    registerProcessorParameter("MSSliceThickness",
+                               "Slice thickness (mm) used to step the track through the sensor when applying multiple scattering.",
+                               _msSliceThickness,
+                               0.005);
+
     registerProcessorParameter("TRise",
                                "Optional override for t_rise (ns). Negative means use default.",
                                _t_riseOverride,
@@ -686,17 +695,123 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         exit[i]= origPos[i] + dir[i] * (exit[2] - origPos[2]) / dir[2];
     }
 
+    // PDG multiple-scattering charge number z: |q| in units of e. Fall back to unit charge
+    // when the hit carries no MC particle, matching the electron-mass fallback in
+    // FindLocalPosition(). Neutrals are skipped: with z = 0 the log term is log(0) and
+    // theta_0 would evaluate to 0 * -inf = NaN.
+    EVENT::MCParticle *ms_mcp = hit->getMCParticle();
+    double q_charge = (ms_mcp != nullptr) ? std::fabs(ms_mcp->getCharge()) : 1.0;
+
+    if (_doMultipleScattering && q_charge == 0.)
+        streamlog_out( DEBUG6 ) << "Neutral particle, skipping multiple scattering" << std::endl;
+
+    // Hits with neither momentum nor MC particle cannot be scattered
+    if(_doMultipleScattering && q_charge > 0. && _currentParticleMomentum > 0.){
+        streamlog_out( DEBUG6 ) << "Applying multiple scattering formula" << std::endl;
+        //**************************************************************************
+        //Multiple scattering implementation based on PDG formula (https://pdg.lbl.gov/2020/reviews/rpp2020-rev-passage-particles-matter.pdf)
+        //**************************************************************************
+            // Momentum and mass from FindLocalPosition(), which falls back to the MC particle
+            // when the hit carries no momentum (p = 0 would make theta_0 infinite)
+            double p = _currentParticleMomentum / dd4hep::GeV; //[GeV/c]
+            double mass = _currentParticleMass / dd4hep::GeV; //[GeV/c^2]
+            double beta = p / std::sqrt(p*p + mass*mass);
+
+            double x_0 = 93.7; // [mm] -> radiation length in silicon
+            double sensorT = _layerThickness[_currentLayer]; // [mm] -> sensor thickness
+
+        // normalize direction
+        double mag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+        dir[0] /= mag;
+        dir[1] /= mag;
+        dir[2] /= mag;
+        for (int i = 0; i < 2; ++i) {
+            entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
+        }
+
+        double pathL_segment, theta_0_total, theta_0_slice, theta_plane_x, theta_plane_y;
+        // Use fixed z-slice thickness for speed. The number of slices is pre-calculated
+        // to cover exactly the sensor thickness, avoiding unbounded while loops.
+        double sliceT = (_msSliceThickness > 0.) ? _msSliceThickness : sensorT;
+        int n_slices = std::max(1, (int)std::ceil(sensorT / sliceT * (1. - 1e-6)));
+        double z_segment = sensorT / n_slices;
+
+        // Compute theta_0 once for full sensor thickness using PDG formula, avoiding per-slice
+        // accumulation of log term which underestimates by 12-21% depending on slice count
+        double pathL_total = std::fabs(dir[2]) > 1e-12 ? sensorT / std::fabs(dir[2]) : sensorT;
+        theta_0_total = (0.0136/(beta*p))*q_charge*std::sqrt(pathL_total/x_0)
+                      * (1+0.038*std::log(pathL_total*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+
+        for (int islice = 0; islice < n_slices; ++islice) {
+            // Path length for this segment based on current direction
+            pathL_segment = z_segment / std::fabs(dir[2]);  // Will be adjusted if dir[2] ~0
+
+            // --- Multiple scattering step ---
+            // Distribute total theta_0 across slices: theta_RMS for each slice = theta_0_total / sqrt(n_slices)
+            // We increment n_slices first to ensure we have the correct count before computing theta_0_slice
+            theta_0_slice = theta_0_total / std::sqrt((double)n_slices);
+
+            theta_plane_x = RandGauss::shoot(0., theta_0_slice);
+            theta_plane_y = RandGauss::shoot(0., theta_0_slice);
+
+            // Save old direction for proper spatial displacement calculation
+            double dirOld[3] = {dir[0], dir[1], dir[2]};
+
+            // Rotate direction vector using 3D rotations (valid for arbitrary angles, unlike tan/atan)
+            // Rotation in x-z plane by theta_plane_x: affects dir[0] and dir[2]
+            double dirX_rot = dir[0] * std::cos(theta_plane_x) - dir[2] * std::sin(theta_plane_x);
+            double dirZ_rot = dir[0] * std::sin(theta_plane_x) + dir[2] * std::cos(theta_plane_x);
+            dir[0] = dirX_rot;
+            dir[2] = dirZ_rot;
+
+            // Rotation in y-z plane by theta_plane_y: affects dir[1] and dir[2]
+            dirX_rot = dir[1] * std::cos(theta_plane_y) - dir[2] * std::sin(theta_plane_y);
+            dirZ_rot = dir[1] * std::sin(theta_plane_y) + dir[2] * std::cos(theta_plane_y);
+            dir[1] = dirX_rot;
+            dir[2] = dirZ_rot;
+
+            // Renormalize
+            double mag2 = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+            dir[0] /= mag2;
+            dir[1] /= mag2;
+            dir[2] /= mag2;
+
+            // Update position using average of old and new directions
+            // This accounts for scattering being distributed throughout the segment
+            double dirAvg[3] = {0.5 * (dirOld[0] + dir[0]),
+                                0.5 * (dirOld[1] + dir[1]),
+                                0.5 * (dirOld[2] + dir[2])};
+            pos[0] += dirAvg[0] * pathL_segment;
+            pos[1] += dirAvg[1] * pathL_segment;
+            pos[2] += dirAvg[2] * pathL_segment;
+
+        }
+        //find final exit point
+        for (int i = 0; i < 2; ++i) {
+            exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
+        }
+    }
+    //end of multiple scattering implementation
+
     streamlog_out( DEBUG5 ) << "local position: " << origPos[0] << ", " << origPos[1] << ", " << origPos[2] << std::endl;
-    // Local unit direction of travel through the sensor.
+    // Local unit direction of travel through the sensor. After the multiple-scattering loop
+    // above this is the deflected direction, so the re-simulation chain sees its own kinematics.
     double dirMag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
     double u[3] = { dir[0]/dirMag, dir[1]/dirMag, dir[2]/dirMag };
     const double halfT = _layerHalfThickness[_currentLayer];
     const bool crossesPlane = std::fabs(u[2]) > 1e-12;
 
-    // Straight-line crossing of the full sensor along that direction.
-    double crossingLength = crossesPlane
-                          ? _layerThickness[_currentLayer] / std::fabs(u[2])
-                          : _maxTrkLen;
+    // Path length accounting for spatial displacement from multiple scattering.
+    // Calculate 3D distance between entry and exit points, which naturally includes
+    // both the z-thickness and lateral displacement from scattering.
+    double dx = exit[0] - entry[0];
+    double dy = exit[1] - entry[1];
+    double dz = exit[2] - entry[2];
+    double crossingLength = std::sqrt(dx*dx + dy*dy + dz*dz);
+
+    // Safety check for nearly-parallel particles
+    if (std::fabs(u[2]) < 1e-12)
+        crossingLength = std::min(crossingLength, _maxTrkLen);
 
     // Two mutually exclusive sources for the trail, selected by _resimulateIonisation:
     //  0 (Geant4, default): the trail length is the path length Geant4 recorded in the
@@ -750,6 +865,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     // Place the trail as a straight segment along u, parametrised by the path coordinate s
     // measured from the hit position.
     double sLo, sHi;
+
     if (resimulate)
     {
         if (crossesPlane)
@@ -788,13 +904,15 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     streamlog_out (DEBUG5) << "Number of ionization points: " << _numberOfSegments
         << ", trail from " << (resimulate ? "re-simulation" : "Geant4")
         << ", G4 EDep = "  << hcharge << std::endl;
+
     for (int i = 0; i < _numberOfSegments; ++i)
     {
         double sPath = sLo + (i + 0.5) * geomStep;
         double x = origPos[0] + sPath * u[0];
         double y = origPos[1] + sPath * u[1];
         double z = origPos[2] + sPath * u[2];
-        // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
+
+        // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV,
         // length in mm, meanLoss eloss in MeV.
         // SampleFluctuations modifies the delta-ray cut it is given: pass a copy, or the cut
         // drifts from segment to segment and event to event
@@ -831,10 +949,9 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     }
     streamlog_out (DEBUG3) << "List of ionization points:" << std::endl;
     for (int i =0; i < _numberOfSegments; ++i) {
-        streamlog_out (DEBUG3) << "- " << i << ": E=" << _ionisationPoints[i].eloss 
+        streamlog_out (DEBUG3) << "- " << i << ": E=" << _ionisationPoints[i].eloss
             << ", x=" << _ionisationPoints[i].x << ", y=" << _ionisationPoints[i].y << ", z=" << _ionisationPoints[i].z << std::endl;
     }
-
 }
 void MuonCVXDDigitiser::ProduceSignalPoints()
 {

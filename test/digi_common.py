@@ -33,6 +33,7 @@ CONFIGS = {
     "timing_sigma100": {"TimeSmearingSigma": 0.1},
     # Ionisation trail re-simulated from the local direction and EnergyLoss, not from Geant4
     "resim": {**NOSMEAR, "ResimulateIonisation": 1},
+    "ms": {**NOSMEAR, "DoMultipleScattering": 1},
 }
 
 HIT_COLUMNS = ["subdet", "event", "cellID", "sim_x", "sim_y", "sim_z", "sim_t", "sim_edep", "px", "py", "pz",
