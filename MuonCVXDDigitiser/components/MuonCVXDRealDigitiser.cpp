@@ -218,11 +218,15 @@ MuonCVXDRealDigitiser::operator()(const edm4hep::SimTrackerHitCollection& STHcol
 
                     recoHit.setCellID(digiHit.cellID);
 
-                    // See DetElemSlidingWindow::StoreSignalPoints
+                    // See DetElemSlidingWindow::StoreSignalPoints: undo the sensor offset only
+                    // where it was applied, i.e. when z-segmentation is active
                     int segment_id = m_cellID->sensor(digiHit.cellID);
-                    float s_offset = sensor->GetSensorCols() * sensor->GetPixelSizeY();
-                    s_offset *= (float(segment_id) + 0.5);
-                    s_offset -= sensor->GetHalfLength();
+                    float s_offset = 0.;
+                    if (m_geo.zSegmented) {
+                        s_offset = sensor->GetSensorCols() * sensor->GetPixelSizeY();
+                        s_offset *= (float(segment_id) + 0.5);
+                        s_offset -= sensor->GetHalfLength();
+                    }
 
                     Vector2D oldPos(loc_pos[0] * dd4hep::mm, (loc_pos[1] - s_offset) * dd4hep::mm);
                     Vector3D lv = surf->localToGlobal(oldPos);

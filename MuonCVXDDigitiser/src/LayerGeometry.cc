@@ -2,10 +2,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <ostream>
 #include <stdexcept>
 
 #include "DD4hep/DD4hepUnits.h"
+#include "DD4hep/IDDescriptor.h"
+#include "DD4hep/Readout.h"
+#include "DDSegmentation/BitFieldCoder.h"
 #include "DDRec/DetectorData.h"
 #include "DDRec/Surface.h"
 
@@ -66,9 +70,35 @@ SensorExtent surfaceExtent(dd4hep::rec::ISurface& surface)
     return extent;
 }
 
-bool resolveZSegmented(int zSegmented, const SubDetectorType& type)
+bool resolveZSegmented(int zSegmented, const SubDetectorType& type, const std::vector<int>& sensorsPerLadder)
 {
-    return (zSegmented < 0) ? (type.isVertex && type.isBarrel) : (zSegmented > 0 && type.isBarrel);
+    if (!type.isBarrel) return false;
+    if (zSegmented >= 0) return zSegmented > 0;
+    return std::any_of(sensorsPerLadder.begin(), sensorsPerLadder.end(), [](int n) { return n > 1; });
+}
+
+namespace {
+/** Number of sensors along z on the ladders of each layer ID, from the sensor field of the cell
+ *  IDs of the surfaces. Empty if the sub-detector has no readout with layer and sensor fields.
+ */
+std::map<int, int> sensorsOnLadder(const dd4hep::Detector& detector, const std::string& subDetName,
+                                   const dd4hep::rec::SurfaceMap& surfaceMap)
+{
+    std::map<int, int> sensors;
+    dd4hep::SensitiveDetector sensDet = detector.sensitiveDetector(subDetName);
+    if (!sensDet.isValid()) return sensors;
+    try {
+        const dd4hep::DDSegmentation::BitFieldCoder* decoder = sensDet.readout().idSpec().decoder();
+        for (const auto& [cellID, surface] : surfaceMap) {
+            const int layerID = decoder->get(cellID, "layer");
+            const int sensor = decoder->get(cellID, "sensor");
+            sensors[layerID] = std::max(sensors[layerID], sensor + 1);
+        }
+    } catch (const std::exception&) {
+        sensors.clear();
+    }
+    return sensors;
+}
 }
 
 LayerGeometry loadLayerGeometry(const dd4hep::Detector& detector,
@@ -79,7 +109,6 @@ LayerGeometry loadLayerGeometry(const dd4hep::Detector& detector,
     LayerGeometry geo;
     geo.subDetName = subDetName;
     geo.type = classifySubDetector(subDetName);
-    geo.zSegmented = resolveZSegmented(zSegmented, geo.type);
     geo.layerIDs = layerIDs;
 
     DetElement subDetector = detector.detector(subDetName);
@@ -137,6 +166,10 @@ LayerGeometry loadLayerGeometry(const dd4hep::Detector& detector,
 
     int curr_layer = 0;
     if (geo.type.isBarrel) {
+        // ZPlanarData only gives the number of sensors on a ladder for z-segmented drivers:
+        // sensorsPerLadder is 0 for the MAIA tracker barrels, whose ladders have 32 to 84 sensors
+        // with a surface each
+        const std::map<int, int> sensorsFromSurfaces = sensorsOnLadder(detector, subDetName, *geo.surfaceMap);
         for (const ZPlanarData::LayerLayout& z_layout : barrelLayers)
         {
             // ALE: Geometry is in cm, convert all length to mm
@@ -145,13 +178,19 @@ LayerGeometry loadLayerGeometry(const dd4hep::Detector& detector,
             geo.layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm;
             geo.layerHalfThickness[curr_layer] = 0.5 * geo.layerThickness[curr_layer];
             geo.layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm + geo.layerHalfThickness[curr_layer];
-            geo.sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
-            if (geo.zSegmented) {
-                geo.layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm;
+            if (z_layout.sensorsPerLadder > 0) {
+                geo.sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
             } else {
-                geo.layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm;
+                // Layer ID of the cell ID: the geometry index when LayerIDs is not given
+                const int layerID = curr_layer < (int)layerIDs.size() ? layerIDs[curr_layer] : curr_layer;
+                auto it = sensorsFromSurfaces.find(layerID);
+                geo.sensorsPerLadder[curr_layer] = std::max(1, it != sensorsFromSurfaces.end() ? it->second : 0);
             }
-            if ((geo.type.isInnerTracker || geo.type.isOuterTracker) && z_layout.lengthSensor == 0) {
+            // Sensitive length of the whole ladder: the sensors times their length when the driver
+            // gives it (vertex barrel), the sensitive half-length otherwise (tracker barrels)
+            if (z_layout.lengthSensor > 0) {
+                geo.layerLadderLength[curr_layer] = z_layout.lengthSensor * geo.sensorsPerLadder[curr_layer] * dd4hep::cm / dd4hep::mm;
+            } else {
                 geo.layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive * dd4hep::cm / dd4hep::mm;
             }
             geo.layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm;
@@ -180,6 +219,10 @@ LayerGeometry loadLayerGeometry(const dd4hep::Detector& detector,
             curr_layer++;
         }
     }
+
+    // Auto (< 0): split the pixel matrix of a ladder into its sensors whenever the ladders have more
+    // than one, as each sensor has its own surface (all the MAIA barrels)
+    geo.zSegmented = resolveZSegmented(zSegmented, geo.type, geo.sensorsPerLadder);
 
     return geo;
 }

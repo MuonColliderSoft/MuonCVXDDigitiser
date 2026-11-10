@@ -91,7 +91,7 @@ private:
     Gaudi::Property<float> m_fe_slope{this, "RD53Aslope", 0.1, "ADC slope for chip RD53A"};
     Gaudi::Property<int> m_sensor_type{this, "SensorType", 1, "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)"};
     Gaudi::Property<int> m_zSegmented{this, "ZSegmented", -1,
-        "Sensor segmentation along z, barrel layers only: -1 = auto (on for the vertex barrel), 0 = off, 1 = on."};
+        "Segmentation of the ladders along z into their sensors: -1 = auto (on when the ladders have more than one sensor, as all the MAIA barrels), 0 = off, 1 = on."};
     Gaudi::Property<bool> m_create_stats{this, "CreateStats", false, "Fill cluster statistics histograms"};
 
     SmartIF<IGeoSvc> m_geoSvc;

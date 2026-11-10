@@ -26,10 +26,10 @@ struct SubDetectorType
  */
 SubDetectorType classifySubDetector(const std::string& subDetName);
 
-/** Resolve the ZSegmented tri-state: < 0 = auto (vertex barrel only), 0 = off, > 0 = on.
- *  Segmentation along z is only meaningful for barrel layers.
+/** Resolve the ZSegmented tri-state: < 0 = auto (on when a ladder has more than one sensor),
+ *  0 = off, > 0 = on. Segmentation along z is only meaningful for barrel layers.
  */
-bool resolveZSegmented(int zSegmented, const SubDetectorType& type);
+bool resolveZSegmented(int zSegmented, const SubDetectorType& type, const std::vector<int>& sensorsPerLadder);
 
 /** Extent of the sensitive area of a sensor, centred on the origin of its surface.
  *  The pixel matrix of the sensor covers [-halfLengthU, halfLengthU] x [-halfLengthV, halfLengthV]

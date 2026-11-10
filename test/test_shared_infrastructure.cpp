@@ -50,6 +50,7 @@ void checkGeometry(const dd4hep::Detector& detector, const TrackerCellID& cellID
         if (geo.type.isBarrel) {
             check(geo.laddersInLayer[i] > 0, layer + ": ladders > 0");
             check(geo.layerRadius[i] > 0, layer + ": radius > 0");
+            check(geo.sensorsPerLadder[i] >= 1, layer + ": sensors per ladder >= 1");
             check(geo.layerLadderLength[i] > 0, layer + ": ladder length > 0");
             check(geo.layerLadderWidth[i] > 0, layer + ": ladder width > 0");
             check(geo.pixelsInRow(i, 0.025) > 0 && geo.pixelsInColumn(i, 0.025) > 0, layer + ": pixel counts");
@@ -177,9 +178,10 @@ int main(int argc, char** argv)
 
     checkGeometry(detector, cellIDCoder, "VertexBarrel", -1, true);
     checkGeometry(detector, cellIDCoder, "VertexEndcap", -1, false);
-    checkGeometry(detector, cellIDCoder, "InnerTrackerBarrel", -1, false);
+    // Auto z-segmentation is on for every barrel with more than one sensor per ladder: all the MAIA barrels
+    checkGeometry(detector, cellIDCoder, "InnerTrackerBarrel", -1, true);
     checkGeometry(detector, cellIDCoder, "InnerTrackerEndcap", -1, false);
-    checkGeometry(detector, cellIDCoder, "OuterTrackerBarrel", -1, false);
+    checkGeometry(detector, cellIDCoder, "OuterTrackerBarrel", -1, true);
     checkGeometry(detector, cellIDCoder, "OuterTrackerEndcap", -1, false);
     // Explicit overrides of the tri-state
     check(loadLayerGeometry(detector, "VertexBarrel", 0, {}).zSegmented == false, "ZSegmented=0 on vertex barrel");
@@ -193,6 +195,8 @@ int main(int argc, char** argv)
         for (int i = 0; i < geo.numberOfLayers; ++i) {
             const double expected = 2 * zPlanarData->layers[i].zHalfSensitive / dd4hep::mm;
             check(std::abs(geo.layerLadderLength[i] - expected) < 1e-3, name + ": ladder length in mm from zHalfSensitive");
+            // ZPlanarData gives no sensor count for the tracker barrels: it comes from the surfaces
+            check(geo.sensorsPerLadder[i] > 1, name + ": sensors per ladder counted from the surfaces");
         }
     }
 

@@ -1,6 +1,7 @@
 #ifndef MuonCVXDDigitiser_h
 #define MuonCVXDDigitiser_h 1
 
+#include <array>
 #include <map>
 #include <memory>
 #include <string>
@@ -96,15 +97,15 @@ private:
         int numberOfSegments{0};
         double currentParticleMass{0};
         double currentParticleMomentum{0};
-        double currentPhi{0};
         double eSum{0};
-        double segmentDepth{0};
         // Pixel matrix of the sensor: [-sensorHalfLengthU, sensorHalfLengthU] x [-sensorHalfLengthV, sensorHalfLengthV]
         double sensorHalfLengthU{0};
         double sensorHalfLengthV{0};
         double currentLocalPosition[3]{};
-        double currentEntryPoint[3]{};
-        double currentExitPoint[3]{};
+        // Kinked trajectory through the sensor when multiple scattering is applied (local mm),
+        // from the entry face to the exit face; empty otherwise
+        std::vector<std::array<double, 3>> msTrajectory;
+        double msTotalScatteringAngle{0}; // theta_0 over the whole sensor crossing (rad)
         IonisationPointVec ionisationPoints;
         SignalPointVec signalPoints;
     };

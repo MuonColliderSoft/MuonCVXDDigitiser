@@ -4,6 +4,7 @@
 
 set(core_sources
   src/AbstractSensor.cc
+  src/ChargeDigitizationBins.cc
   src/DetElemSlidingWindow.cc
   src/FindUnionAlgorithm.cc
   src/G4UniversalFluctuation.cc

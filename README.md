@@ -183,7 +183,7 @@ of the sensor surface.
 | `LayerIDs` | vector<int> | `[]` | Cell ID layer IDs of the geometry layers; empty = 0, 1, 2, ... |
 | `EncodingStringParameterName` | string | `"GlobalTrackerReadoutID"` | DD4hep constant with the cell ID encoding |
 | `GeoSvcName` | string | `"GeoSvc"` | Name of the GeoSvc instance |
-| `ZSegmented` | int | `-1` | Sensor segmentation along z: -1 = auto (on for the vertex barrel), 0 = off, 1 = on |
+| `ZSegmented` | int | `-1` | Segmentation of the ladders along z into their sensors: -1 = auto (on when the ladders have more than one sensor, as all the MAIA barrels), 0 = off, 1 = on |
 | `SensorType` | int | `1` | Sensor model: 0 = RD53A chip (charge from time over threshold), 1 = trivial (charge collected in the time window) |
 | `WindowSize` | float | `25.` | Clock period, i.e. width of the time window (ns) |
 | `RD53Aslope` | float | `0.1` | Discharge slope of the RD53A front end (electrons/ns) |

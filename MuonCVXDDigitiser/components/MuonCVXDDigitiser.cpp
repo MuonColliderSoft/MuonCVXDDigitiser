@@ -15,6 +15,7 @@
 #include "edm4hep/MutableSimTrackerHit.h"
 #include "edm4hep/MutableTrackerHitPlane.h"
 
+#include "ChargeDigitizationBins.h"
 #include "EventRandom.h"
 
 using dd4hep::rec::SurfaceMap;
@@ -85,58 +86,20 @@ StatusCode MuonCVXDDigitiser::initialize()
 
 void MuonCVXDDigitiser::FillChargeBins()
 {
-    // Bins for charge discretization
-    // FIXME: Will move to assign more dynamically
-    std::vector<double> genericBins;
-    if (m_ChargeDigitizeNumBits == 3) genericBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
-    if (m_ChargeDigitizeNumBits == 4) genericBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756};
-    if (m_ChargeDigitizeNumBits == 5) genericBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
-    if (m_ChargeDigitizeNumBits == 6) genericBins = {500, 542, 572, 601, 629, 661, 692, 721, 750, 779, 812, 842, 877, 913, 946, 981, 1016, 1051, 1087, 1121, 1161, 1196, 1237, 1275, 1313, 1350, 1391, 1431, 1468, 1514, 1560, 1606, 1646, 1687, 1733, 1777, 1821, 1872, 1920, 1976, 2036, 2091, 2145, 2213, 2272, 2337, 2411, 2488, 2573, 2651, 2739, 2834, 2938, 3053, 3194, 3356, 3532, 3764, 4034, 4379, 4907, 5698, 6957, 9636};
-    if (m_ChargeDigitizeNumBits == 8) genericBins = {500, 511, 523, 533, 542, 550, 556, 564, 570, 577, 585, 592, 598, 603, 610, 617, 624, 630, 638, 646, 654, 661, 668, 676, 684, 691, 699, 705, 712, 719, 724, 731, 738, 745, 752, 760, 767, 772, 780, 787, 795, 802, 810, 818, 826, 832, 839, 847, 856, 865, 874, 881, 889, 898, 906, 916, 924, 930, 938, 945, 955, 965, 971, 978, 986, 995, 1004, 1012, 1019, 1027, 1036, 1044, 1053, 1062, 1071, 1079, 1088, 1096, 1104, 1112, 1121, 1131, 1139, 1149, 1158, 1168, 1175, 1184, 1193, 1203, 1211, 1221, 1233, 1241, 1249, 1259, 1268, 1277, 1286, 1294, 1303, 1313, 1321, 1330, 1338, 1348, 1357, 1368, 1378, 1387, 1395, 1406, 1417, 1426, 1434, 1445, 1452, 1460, 1470, 1480, 1492, 1503, 1514, 1525, 1536, 1550, 1560, 1570, 1580, 1592, 1604, 1614, 1623, 1634, 1644, 1653, 1662, 1673, 1684, 1695, 1707, 1717, 1727, 1737, 1747, 1759, 1769, 1780, 1790, 1800, 1812, 1823, 1835, 1846, 1860, 1873, 1885, 1897, 1907, 1918, 1931, 1943, 1958, 1971, 1987, 2000, 2014, 2026, 2041, 2056, 2068, 2080, 2095, 2108, 2119, 2131, 2147, 2162, 2180, 2195, 2213, 2224, 2238, 2256, 2269, 2284, 2300, 2314, 2332, 2351, 2366, 2383, 2401, 2421, 2440, 2458, 2475, 2496, 2519, 2538, 2559, 2581, 2601, 2618, 2636, 2658, 2681, 2703, 2722, 2742, 2767, 2791, 2811, 2836, 2857, 2884, 2913, 2938, 2967, 2995, 3023, 3052, 3086, 3119, 3153, 3188, 3221, 3270, 3304, 3342, 3390, 3428, 3473, 3515, 3556, 3611, 3691, 3742, 3801, 3857, 3928, 3999, 4069, 4141, 4220, 4325, 4417, 4518, 4655, 4789, 4965, 5141, 5359, 5548, 5770, 6017, 6311, 6584, 7024, 7492, 8060, 8740, 9738, 11450, 14878, 23973};
-
-    // Dedicated 4-bit tables for the vertex detector (barrel and endcap), keyed on the
-    // sensor thickness in microns. Keyed on a rounded integer because layerThickness is
-    // float and would never compare equal to a double literal.
-    const std::map<int, std::vector<double>> vertexBins4bit = {
-        {50, {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}},
-        {75, {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}},
-        {100, {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}},
-        {200, {500, 720, 1037, 1494, 2152, 3099, 4463, 6428, 9258, 13334, 19205, 27660, 39838, 57378, 82640, 119024}},
-        {400, {500, 754, 1138, 1716, 2588, 3904, 5889, 8883, 13399, 20211, 30486, 45985, 69363, 104626, 157816, 238048}},
-    };
-
     // One table per layer, chosen from the sensor thickness of the layer
-    m_DigitizedBins.assign(m_geo.numberOfLayers, genericBins);
+    m_DigitizedBins.resize(m_geo.numberOfLayers);
     for (int i = 0; i < m_geo.numberOfLayers; ++i)
     {
-        int thickness_um = (int)std::lround(m_geo.layerThickness[i] * 1000.);
-        if (m_ChargeDigitizeNumBits == 4 && m_geo.type.isVertex)
-        {
-            auto it = vertexBins4bit.find(thickness_um);
-            if (it != vertexBins4bit.end()) m_DigitizedBins[i] = it->second;
-        }
+        m_DigitizedBins[i] = chargeDigitizationBins(m_ChargeDigitizeNumBits, m_geo.type.isVertex, m_geo.layerThickness[i]);
         if (m_DigitizedBins[i].empty())
         {
             warning() << "No charge digitization bins defined for " << m_ChargeDigitizeNumBits.value()
                       << " bits; variable binning is unusable for layer " << i << endmsg;
             continue;
         }
-        debug() << "Layer " << i << ": sensor thickness " << thickness_um
-                << " um, " << m_DigitizedBins[i].size() << " charge bins, first/last = "
+        debug() << "Layer " << i << ": sensor thickness " << m_geo.layerThickness[i]
+                << " mm, " << m_DigitizedBins[i].size() << " charge bins, first/last = "
                 << m_DigitizedBins[i].front() << "/" << m_DigitizedBins[i].back() << endmsg;
-    }
-
-    // shift digitized bins for inner and outer tracker by factor of 2
-    // this adjusts for the fact that the resolution is 2x worse for inner and outer tracker
-    if (!m_geo.type.isVertex) {
-        debug() << "Subdetector is: " << m_subDetName.value() << endmsg;
-        float shift = 500.; // first bin
-        float scalefactor = 2.;
-        for (auto& bins : m_DigitizedBins) {
-            for (int i = 0; i < (int)bins.size(); i++) {
-                bins[i] = (bins[i] - bins[0]) * scalefactor + shift;
-            }
-        }
     }
 }
 
@@ -429,9 +392,6 @@ void MuonCVXDDigitiser::FindLocalPosition(const edm4hep::SimTrackerHit& hit,
     localDirection[0] = Momentum * surf->u();
     localDirection[1] = Momentum * surf->v();
     localDirection[2] = Momentum * surf->normal();
-    if (m_geo.type.isBarrel) {
-        state.currentPhi = state.currentLadder * 2.0 * m_geo.layerHalfPhi[state.currentLayer] + m_geo.layerPhiOffset[state.currentLayer];
-    }
 }
 
 void MuonCVXDDigitiser::ProduceIonisationPoints(const edm4hep::SimTrackerHit& hit, HitState& state, EventRandom& random) const
@@ -466,14 +426,22 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(const edm4hep::SimTrackerHit& hi
     if (m_doMultipleScattering && q_charge == 0.)
         verbose() << "Neutral particle, skipping multiple scattering" << endmsg;
 
-    if (m_doMultipleScattering && q_charge > 0.) {
+    // Tracks running in the sensor plane do not cross it and are left unscattered, as are
+    // hits with neither momentum nor MC particle.
+    const bool msCrosses = std::fabs(dir[2]) > 1e-12 * std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+
+    state.msTrajectory.clear();
+    state.msTotalScatteringAngle = 0.;
+    if (m_doMultipleScattering && q_charge > 0. && state.currentParticleMomentum > 0. && msCrosses) {
         verbose() << "Applying multiple scattering formula" << endmsg;
         //**************************************************************************
         //Multiple scattering implementation based on PDG formula (https://pdg.lbl.gov/2020/reviews/rpp2020-rev-passage-particles-matter.pdf)
         //**************************************************************************
-        const auto& hitMomentum = hit.getMomentum();
-        double p = std::sqrt(pow(hitMomentum.x, 2) + pow(hitMomentum.y, 2) + pow(hitMomentum.z, 2)); //[GeV/c]
-        double beta = p / std::sqrt(p * p + state.currentParticleMass * state.currentParticleMass);
+        // Momentum and mass from FindLocalPosition(), which falls back to the MC particle
+        // when the hit carries no momentum (p = 0 would make theta_0 infinite)
+        double p = state.currentParticleMomentum / dd4hep::GeV; //[GeV/c]
+        double mass = state.currentParticleMass / dd4hep::GeV; //[GeV/c^2]
+        double beta = p / std::sqrt(p * p + mass * mass);
 
         double x_0 = 93.7; // [mm] -> radiation length in silicon
         double sensorT = m_geo.layerThickness[layer]; // [mm] -> sensor thickness
@@ -483,61 +451,103 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(const edm4hep::SimTrackerHit& hi
         dir[0] /= mag;
         dir[1] /= mag;
         dir[2] /= mag;
-        for (int i = 0; i < 2; ++i) {
-            entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
-        }
 
-        double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y;
+        // Step from the face the particle enters through: z = -halfT when it travels towards
+        // +z, z = +halfT when it travels towards -z. The entry point is on the straight line
+        // through the hit, the exit point is wherever the scattered track leaves the sensor.
+        const double zSign = (dir[2] >= 0.) ? 1. : -1.;
+        entry[2] = -zSign * 0.5 * sensorT;
+        exit[2]  =  zSign * 0.5 * sensorT;
+        for (int i = 0; i < 2; ++i) {
+            entry[i] = origPos[i] + dir[i] * (entry[2] - origPos[2]) / dir[2];
+        }
+        for (int i = 0; i < 3; ++i) pos[i] = entry[i];
+        const double dirIn[3] = {dir[0], dir[1], dir[2]};
+
         // Step through the sensor in a whole number of slices no thicker than
-        // MSSliceThickness, so the steps cover exactly the sensor thickness. Accumulating a
-        // floating-point z against sensorT instead runs a whole extra slice: layerThickness
-        // is a float, so 50 um / 5 um evaluates to 10.000000149 rather than 10. The small
-        // relative tolerance absorbs that while still rounding a genuine 10.4 up to 11.
+        // MSSliceThickness, so the steps cover exactly the sensor thickness. The small
+        // relative tolerance absorbs the float layer thickness (50 um / 5 um evaluates to
+        // 10.000000149) while still rounding a genuine 10.4 up to 11.
         double sliceT = (m_msSliceThickness > 0.) ? m_msSliceThickness.value() : sensorT;
         int n_slices = std::max(1, (int)std::ceil(sensorT / sliceT * (1. - 1e-6)));
         double z_segment = sensorT / n_slices;
+
+        // theta_0 is computed once for the full sensor crossing with the PDG formula: summing
+        // per-slice values underestimates it by 12-21%, because of the log term
+        double pathL_total = sensorT / std::fabs(dir[2]);
+        double theta_0_total = (0.0136 / (beta * p)) * q_charge * std::sqrt(pathL_total / x_0)
+            * (1 + 0.038 * std::log(pathL_total * std::pow(q_charge, 2) / (x_0 * std::pow(beta, 2)))); //as defined in PDG
+        state.msTotalScatteringAngle = theta_0_total;
+        // Each slice scatters by theta_0_total / sqrt(n_slices), so the slices add up to theta_0_total
+        const double theta_0_slice = theta_0_total / std::sqrt((double)n_slices);
+
+        state.msTrajectory.push_back({pos[0], pos[1], pos[2]}); // entry point
+        double cumulativePath = 0.;
+
+        bool crossedSensor = true;
         for (int islice = 0; islice < n_slices; ++islice) {
+            double theta_plane_x = random.gauss(0., theta_0_slice);
+            double theta_plane_y = random.gauss(0., theta_0_slice);
 
-            pathL_segment = z_segment / fabs(dir[2]); // path length for segment
+            const double dirOld[3] = {dir[0], dir[1], dir[2]};
 
-            // --- Multiple scattering step ---
-            // 0.0136 GeV is the PDG 13.6 MeV constant; natural units (c = 1) with p in GeV/c
-            theta_0 = (0.0136 / (beta * p)) * q_charge * std::sqrt(pathL_segment / x_0)
-                * (1 + 0.038 * std::log(pathL_segment * std::pow(q_charge, 2) / (x_0 * std::pow(beta, 2)))); //as defined in PDG
+            // Rotate the direction (valid for arbitrary angles, unlike tan/atan):
+            // in the x-z plane by theta_plane_x, then in the y-z plane by theta_plane_y
+            double dirX_rot = dir[0] * std::cos(theta_plane_x) - dir[2] * std::sin(theta_plane_x);
+            double dirZ_rot = dir[0] * std::sin(theta_plane_x) + dir[2] * std::cos(theta_plane_x);
+            dir[0] = dirX_rot;
+            dir[2] = dirZ_rot;
+            dirX_rot = dir[1] * std::cos(theta_plane_y) - dir[2] * std::sin(theta_plane_y);
+            dirZ_rot = dir[1] * std::sin(theta_plane_y) + dir[2] * std::cos(theta_plane_y);
+            dir[1] = dirX_rot;
+            dir[2] = dirZ_rot;
 
-            theta_plane_x = random.gauss(0., theta_0);
-            theta_plane_y = random.gauss(0., theta_0);
-            theta_out_x = theta_plane_x + std::atan2(dir[0], dir[2]);
-            theta_out_y = theta_plane_y + std::atan2(dir[1], dir[2]);
-
-            //update dir vector:
-            dir[0] = std::tan(theta_out_x);
-            dir[1] = std::tan(theta_out_y);
-            dir[2] = 1.0;
-
-            // renormalize again
-            double mag2 = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + 1.0);
+            double mag2 = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
             dir[0] /= mag2;
             dir[1] /= mag2;
             dir[2] /= mag2;
 
-            //update postion:
-            pos[0] += dir[0] * pathL_segment;
-            pos[1] += dir[1] * pathL_segment;
-            pos[2] += dir[2] * pathL_segment;
+            // Step along the average of the old and new directions: the scattering is spread
+            // over the slice
+            const double dirAvg[3] = {0.5 * (dirOld[0] + dir[0]),
+                                      0.5 * (dirOld[1] + dir[1]),
+                                      0.5 * (dirOld[2] + dir[2])};
+
+            // Each step advances exactly one slice in z, so the trajectory ends on the exit
+            // face and stays monotonic in z. Stop if the track turns back or runs along the
+            // sensor plane, or once the path exceeds MaxTrackLength.
+            double dzAvg = dirAvg[2] * zSign;
+            if (dzAvg < 1e-6) { crossedSensor = false; break; }
+            double pathL_segment = z_segment / dzAvg;
+            if (cumulativePath + pathL_segment > m_maxTrkLen) { crossedSensor = false; break; } // pathL_segment >= true step length
+
+            pos[0] += dirAvg[0] * pathL_segment;
+            pos[1] += dirAvg[1] * pathL_segment;
+            pos[2] = (islice == n_slices - 1) ? exit[2] : pos[2] + zSign * z_segment;
+
+            state.msTrajectory.push_back({pos[0], pos[1], pos[2]});
+            cumulativePath += pathL_segment * std::sqrt(dirAvg[0] * dirAvg[0] + dirAvg[1] * dirAvg[1] + dirAvg[2] * dirAvg[2]);
         }
-        //find final exit point
-        for (int i = 0; i < 2; ++i) {
-            exit[i] = pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
+        if (crossedSensor)
+        {
+            // Exit point: the end of the trajectory, on the exit face
+            for (int i = 0; i < 3; ++i) exit[i] = pos[i];
+        }
+        else
+        {
+            // The scattered track turned back or ran along the sensor plane: keep the
+            // unscattered straight line rather than a trail that does not cross the sensor.
+            debug() << "Scattered track did not cross the sensor, multiple scattering not applied" << endmsg;
+            for (int i = 0; i < 3; ++i) dir[i] = dirIn[i];
+            for (int i = 0; i < 2; ++i)
+                exit[i] = origPos[i] + dir[i] * (exit[2] - origPos[2]) / dir[2];
+            state.msTrajectory.clear();
         }
     }
     //end of multiple scattering implementation
 
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 3; ++i)
         state.currentLocalPosition[i] = origPos[i];
-        state.currentEntryPoint[i] = entry[i];
-        state.currentExitPoint[i] = exit[i];
-    }
     debug() << "local position: " << state.currentLocalPosition[0] << ", " << state.currentLocalPosition[1] << ", " << state.currentLocalPosition[2] << endmsg;
     // Local unit direction of travel through the sensor. After the multiple-scattering loop
     // above this is the deflected direction, so the re-simulation chain sees its own kinematics.
@@ -546,10 +556,17 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(const edm4hep::SimTrackerHit& hi
     const double halfT = m_geo.layerHalfThickness[layer];
     const bool crossesPlane = std::fabs(u[2]) > 1e-12;
 
-    // Straight-line crossing of the full sensor along that direction.
-    double crossingLength = crossesPlane
-                          ? m_geo.layerThickness[layer] / std::fabs(u[2])
-                          : m_maxTrkLen.value();
+    // Crossing of the full sensor: the distance from the entry to the exit point, which
+    // includes the lateral displacement from multiple scattering. A track running in the
+    // sensor plane has no crossing and takes the maximum track length.
+    double crossingLength = m_maxTrkLen.value();
+    if (crossesPlane)
+    {
+        const double dx = exit[0] - entry[0];
+        const double dy = exit[1] - entry[1];
+        const double dz = exit[2] - entry[2];
+        crossingLength = std::sqrt(dx * dx + dy * dy + dz * dz);
+    }
 
     // Two mutually exclusive sources for the trail, selected by ResimulateIonisation:
     //  false (Geant4, default): the trail length is the path length Geant4 recorded in the
@@ -602,7 +619,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(const edm4hep::SimTrackerHit& hi
     double segmentLength = trackLength / ((double)state.numberOfSegments);
 
     // Place the trail as a straight segment along u, parametrised by the path coordinate s
-    // measured from the hit position.
+    // measured from the hit position. With multiple scattering the depths z of the points are
+    // kept and their x, y are taken from the kinked trajectory below.
     double sLo, sHi;
     if (resimulate)
     {
@@ -638,17 +656,39 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(const edm4hep::SimTrackerHit& hi
     }
     if (!(sHi > sLo)) { sLo = 0.; sHi = 0.; }  // degenerate, put everything at the hit
     double geomStep = (sHi - sLo) / ((double)state.numberOfSegments);
-    state.segmentDepth = geomStep * std::fabs(u[2]);
 
     debug() << "Number of ionization points: " << state.numberOfSegments
             << ", trail from " << (resimulate ? "re-simulation" : "Geant4")
             << ", G4 EDep = " << hcharge << endmsg;
+
+    // When multiple scattering was applied, place the ionisation points on the kinked trajectory.
+    // Skip if the scattering angle is small (< 1 mrad) to avoid unnecessary interpolation
+    const std::vector<std::array<double, 3>>& traj = state.msTrajectory;
+    const bool useKinkedPath = (m_doMultipleScattering && crossesPlane && traj.size() > 1
+                                && state.msTotalScatteringAngle > 1e-3);
+
     for (int i = 0; i < state.numberOfSegments; ++i)
     {
         double sPath = sLo + (i + 0.5) * geomStep;
         double x = origPos[0] + sPath * u[0];
         double y = origPos[1] + sPath * u[1];
         double z = origPos[2] + sPath * u[2];
+
+        if (useKinkedPath)
+        {
+            // Same depth as on the straight trail, so the extent set above is kept and the point
+            // stays in the sensor; x and y interpolated on the trajectory, monotonic in z.
+            const double zDir = (traj.back()[2] >= traj.front()[2]) ? 1. : -1.;
+            int k = 0;
+            while (k + 2 < (int)traj.size() && (z - traj[k + 1][2]) * zDir > 0.) ++k;
+            double dzTraj = traj[k + 1][2] - traj[k][2];
+            double t = (std::fabs(dzTraj) > 1e-12) ? (z - traj[k][2]) / dzTraj : 0.5;
+            t = std::max(0.0, std::min(1.0, t)); // clamp to the trajectory if it stopped early
+
+            x = traj[k][0] + t * (traj[k + 1][0] - traj[k][0]);
+            y = traj[k][1] + t * (traj[k + 1][1] - traj[k][1]);
+            z = traj[k][2] + t * dzTraj;
+        }
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV,
         // length in mm, meanLoss eloss in MeV.
         // The delta-ray cut is copied for every call: SampleFluctuations() modifies it.
