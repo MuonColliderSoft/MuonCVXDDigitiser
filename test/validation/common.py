@@ -13,13 +13,14 @@ SUBDETECTORS = [
 
 # Settings of the two digitisation configurations, as MuonCVXDDigitiser properties
 CONFIGS = {
-    "default": {},
+    # The time smearing model is set: its default differs between versions of the processor
+    "default": {"TimeSmearingModel": 1},
     "nosmear": {"PoissonSmearing": False, "ElectronicEffects": False, "ThresholdSmearSigma": 0, "TimeSmearingModel": 0},
 }
 
 # Implementations, in the order they are shown
 IMPLEMENTATIONS = {
-    "marlin": "Marlin (spg-berkeleylab master)",
+    "marlin": "Marlin processor",
     "port": "Gaudi port",
     "revert_cutondeltarays": "Gaudi port, CutOnDeltaRays fix reverted",
     "revert_all": "Gaudi port, all fixes reverted",

@@ -144,7 +144,7 @@ private:
     Gaudi::Property<double> m_timeMax{this, "TimeMaximum", 10.000, "Cell dynamic range for timing measurement [ns]"};
     Gaudi::Property<double> m_timeSmearingSigma{this, "TimeSmearingSigma", 0.05,
         "Constant intrinsic time measurement resolution (ns), used when TimeSmearingModel = 1."};
-    Gaudi::Property<int> m_timeSmearingModel{this, "TimeSmearingModel", 2,
+    Gaudi::Property<int> m_timeSmearingModel{this, "TimeSmearingModel", 1,
         "Time smearing model: 0 = none, 1 = constant sigma (TimeSmearingSigma), 2 = realistic, derived from sensor thickness."};
     Gaudi::Property<bool> m_electronicEffects{this, "ElectronicEffects", true, "Apply Electronic Effects"};
     Gaudi::Property<double> m_electronicNoise{this, "ElectronicNoise", 80., "electronic noise in electrons"};

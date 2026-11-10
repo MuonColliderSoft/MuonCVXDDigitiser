@@ -155,7 +155,7 @@ of the sensor surface.
 | `ChargeDigitizeNumBits` | int | `4` | Number of bits of the charge discretisation |
 | `ChargeDigitizeBinning` | int | `1` | Charge binning: 0 = uniform between `Threshold` and `ChargeMaximum`, 1 = variable, from tables for 3, 4, 5, 6 and 8 bits (dedicated 4-bit tables for vertex sensors of 50, 75, 100, 200 and 400 µm; bins twice as wide for the trackers) |
 | `ChargeMaximum` | double | `15000.` | Dynamic range of the pixel charge (electrons) |
-| `TimeSmearingModel` | int | `2` | Time resolution: 0 = none, 1 = constant `TimeSmearingSigma`, 2 = realistic, from the sensor thickness |
+| `TimeSmearingModel` | int | `1` | Time resolution: 0 = none, 1 = constant `TimeSmearingSigma`, 2 = realistic, from the sensor thickness |
 | `TimeSmearingSigma` | double | `0.05` | Time resolution for `TimeSmearingModel` = 1 (ns) |
 | `TRise`, `SigmaLandau`, `SigmaTimewalk`, `SigmaJitter`, `SigmaTDC`, `SigmaClock` | double | `-1.0` | Overrides of the terms of the realistic time resolution (ns); negative = derived from the sensor thickness |
 | `DigitizeTime` | bool | `true` | Discretisation of the pixel time |

@@ -95,7 +95,7 @@ stage_build() {
     git clone --quiet "$MARLIN_REPO" "$WORKDIR/marlin_src"
     git -C "$WORKDIR/marlin_src" checkout --quiet "$MARLIN_REF"
     in_image "$OLD_IMAGE" "
-        cmake -S marlin_src -B marlin_build -DCMAKE_INSTALL_PREFIX=$W/marlin_install > logs_build_marlin.log 2>&1
+        cmake -S marlin_src -B marlin_build -DCMAKE_INSTALL_PREFIX=$W/marlin_install -DBUILD_TESTING=OFF > logs_build_marlin.log 2>&1
         cmake --build marlin_build -j$JOBS >> logs_build_marlin.log 2>&1
         cmake --install marlin_build >> logs_build_marlin.log 2>&1"
 

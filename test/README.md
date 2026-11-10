@@ -24,8 +24,7 @@ release and downloaded by the first test, `fetch_test_data`, which checks their 
 
 They are the LCIO samples of the [`lcio-test-inputs`](https://github.com/MuonColliderSoft/MuonCVXDDigitiser/releases/tag/lcio-test-inputs)
 release, on which the references of the Marlin processors were made, converted with
-`make_test_inputs.sh` (`lcio2edm4hep`, in an environment with LCIO such as
-`mucoll-sim-ubuntu24:v2.11`).
+`lcio2edm4hep`.
 
 To work offline, configure with `-DMUONCVXD_TEST_DATA_DIR=<folder with the samples>`.
 

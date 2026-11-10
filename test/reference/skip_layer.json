@@ -6,9 +6,9 @@
    "empty_clusters": 0,
    "far_from_sim": 0,
    "hits": 337,
-   "mean_charge_keV": 23.557696613487103,
-   "mean_pixels": 2.765578635014837,
-   "median_residual_um": 5.960318360646234,
+   "mean_charge_keV": 23.742489629404467,
+   "mean_pixels": 2.8189910979228485,
+   "median_residual_um": 5.873792008695385,
    "non_finite": 0,
    "non_positive_charge": 0,
    "time_rms_ps": 2.689065883839774

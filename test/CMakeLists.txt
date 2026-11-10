@@ -164,7 +164,7 @@ add_digi_test(time_bins nosmear mu_gun_detailed --subdet VXDBarrel --subdet VXDE
 add_digi_test(resim resim mu_gun_detailed)
 
 # The source of the ionisation trail, on mu_gun_scaled: mu_gun_detailed with the Geant4 deposit
-# doubled and the path length halved (make_test_inputs.sh). The re-simulated trail takes neither
+# doubled and the path length halved. The re-simulated trail takes neither
 # from Geant4, so the hits are identical; the Geant4 trail is anchored to the deposit, so the charge
 # doubles (within 10 %: the largest vertex pixel charges saturate the last bin of the 4-bit table,
 # ratio 1.86 in the barrel).

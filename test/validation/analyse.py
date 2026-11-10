@@ -6,9 +6,10 @@ writes summary.txt (all sub-detectors) and validation_<subdet>_<layer>.png (deta
 
 With --check, exit with an error if
 - the port and Marlin differ in the deterministic part of the chain (cell IDs and times with smearing off), or
-- the port with all fixes reverted is not statistically compatible with Marlin.
+- the implementation given by --compatible (the port with all fixes reverted by default) is not
+  statistically compatible with Marlin.
 
-Usage: analyse.py <work directory> [--subdet VXDBarrel] [--layer 0] [--check]
+Usage: analyse.py <work directory> [--subdet VXDBarrel] [--layer 0] [--check] [--compatible IMPL]
 """
 import argparse
 import os
@@ -30,6 +31,9 @@ parser.add_argument("--subdet", default="VXDBarrel", choices=[s[0] for s in SUBD
                     help="Sub-detector for the detailed plots")
 parser.add_argument("--layer", type=int, default=0, help="Layer ID for the detailed plots, -1 for all layers")
 parser.add_argument("--check", action="store_true", help="Exit with an error if the validation fails")
+parser.add_argument("--compatible", default="revert_all", choices=[i for i in IMPLEMENTATIONS if i != "marlin"],
+                    help="Implementation that must be statistically compatible with Marlin: revert_all against "
+                         "the upstream processor, port against a Marlin processor with the same fixes")
 args = parser.parse_args()
 
 W = args.work
@@ -118,13 +122,13 @@ def summary_block(title, subdet, layer):
             lines.append(f"  {IMPLEMENTATIONS[impl]:45s} {len(df) / nsim:6.4f}  {res('res_u'):>21s}  "
                          f"{res('res_v'):>21s}  {df.npix.mean():5.2f}{tag('npix'):>7s}  {charge:>24s}  "
                          f"{core(df.dt_ps):7.1f}")
-            if impl == "revert_all" and layer < 0:
+            if impl == args.compatible and layer < 0:
                 eff_err = np.sqrt(len(ref) * (1 - len(ref) / nsim)) / nsim
                 if abs(len(df) - len(ref)) / nsim > max(5 * eff_err, 1e-3):
-                    failures.append(f"{subdet} [{config}]: efficiency of the port with all fixes reverted differs from Marlin")
+                    failures.append(f"{subdet} [{config}]: efficiency of {IMPLEMENTATIONS[impl]} differs from Marlin")
                 for q, p in ks.items():
                     if p < KS_MIN_PVALUE:
-                        failures.append(f"{subdet} [{config}]: {q} of the port with all fixes reverted differs from Marlin (KS p={p:.1e})")
+                        failures.append(f"{subdet} [{config}]: {q} of {IMPLEMENTATIONS[impl]} differs from Marlin (KS p={p:.1e})")
     lines.append("  [nosmear, hit by hit]")
     for impl in impls[1:]:
         both, dpos, overlap = compare_hits(select(data[("marlin", "nosmear")], subdet, layer),

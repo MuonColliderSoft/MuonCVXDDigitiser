@@ -3,7 +3,7 @@
 #
 # cmake -DDEST=<dir> -DURL=<release download URL> [-DLOCAL_DIR=<dir>] -P fetch_test_data.cmake
 
-# Built with make_test_inputs.sh from the LCIO samples of the lcio-test-inputs release
+# Converted from the LCIO samples of the lcio-test-inputs release
 set(samples
   "mu_gun_detailed.edm4hep.root=b21dca6a38fd924bc8d1822f84af515a11f0db020b8b817a9041ae0415559eb6"
   "mu_gun_nodetail.edm4hep.root=82b01a89da85c3991e45985ee116d6f2fd3bd02e4cb54434626cace20c12562c"
