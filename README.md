@@ -18,7 +18,7 @@ The package provides two algorithms:
 | `MuonCVXDDigitiser` | Vertex, inner and outer tracker; barrels and endcaps | Each `SimTrackerHit` is digitised on its own and gives at most one `TrackerHitPlane`. Poisson and electronic noise, smeared threshold, charge and time discretisation, and a time resolution model. |
 | `MuonCVXDRealDigitiser` | Barrel only; practical for the vertex barrel | All the `SimTrackerHit`s of a ladder are fed in time order to a model of the readout chip through a sliding time window. Pixels are clustered on each sensor, so hits from different particles can merge. |
 
-This is the port to Key4hep of the Marlin processors of
+This is the port to Key4hep of the Marlin processors of this repository, originally from
 [spg-berkeleylab/MuonCVXDDigitiser](https://github.com/spg-berkeleylab/MuonCVXDDigitiser);
 see [Changes with respect to the Marlin processors](#changes-with-respect-to-the-marlin-processors).
 
@@ -206,11 +206,15 @@ ladder, but more than 100 MB for a tracker barrel ladder.
 
 ## Changes with respect to the Marlin processors
 
-The physics follows spg-berkeleylab/MuonCVXDDigitiser `master` (31bb9e2). The interface of
-`MuonCVXDDigitiser` is the one already used by
-[MAIAConfig](https://github.com/MuonColliderSoft/MAIAConfig).
-
-### Interface
+The physics is that of the last Marlin version of this repository (`master` at 6877a4c), which
+already has the fixes made since
+[spg-berkeleylab/MuonCVXDDigitiser](https://github.com/spg-berkeleylab/MuonCVXDDigitiser): pixel
+matrix per sensor, per-pixel threshold, constant `CutOnDeltaRays`, `LayerIDs`, realistic time
+smearing, the Geant4-based or re-simulated ionisation trail, multiple scattering, and the
+`MuonCVXDRealDigitiser` fixes for the MAIA barrels. On the same events both give the same efficiency,
+and with smearing off the same cell IDs and times; the other distributions agree within statistics
+(see [test/validation](test/validation/README.md)). The interface of `MuonCVXDDigitiser` is the one
+already used by [MAIAConfig](https://github.com/MuonColliderSoft/MAIAConfig).
 
 - LCIO `LCRelation`s are replaced by EDM4hep link collections. `TrackerHitPlane` has no raw hits in
   EDM4hep: the fired pixels of `MuonCVXDDigitiser` are linked through `RawHitsLinkColName`.
@@ -219,46 +223,12 @@ The physics follows spg-berkeleylab/MuonCVXDDigitiser `master` (31bb9e2). The in
 - Output cell IDs use the encoding of the geometry, with all 64 bits, instead of the LCIO
   `LCTrackerCellID` encoding.
 - On/off parameters are `bool` properties.
-- `MuonCVXDDigitiser`: `ZSegmented` is removed, as the pixel matrix is always the one of the sensor the
-  hit is on.
-- `MuonCVXDRealDigitiser`: `LayerIDs` is new; `StatisticsFilename` is replaced by `CreateStats` and
-  the histogram sink; `PoissonSmearing`, `ElectronicEffects`, `ElectronicNoise` and
-  `StoreFiredPixels` are removed, as they had no effect.
-- The compile-time `ZSEGMENTED` option and OpenMP are gone: the segmentation of the
-  `MuonCVXDRealDigitiser` sensors is set by `ZSegmented`, and parallelism comes from the Gaudi
-  multithreaded event processing.
-
-### Fixes that change the results
-
-`MuonCVXDDigitiser`:
-- The pixel matrix is the one of the sensor the hit is on, with its extent taken from the outline of
-  the DD4hep surface, instead of one matrix per layer built from the ladder (barrel) or petal (endcap)
-  dimensions. The per-layer matrices did not match the MAIA sensors: the tracker barrel ladder length
-  was in cm instead of mm, the tracker endcap modules have several sizes, and the vertex endcap petal
-  width came from a hard-coded outer radius of 112 cm. The pixel boundaries were therefore not aligned
-  with the sensor edges, and in the outer tracker endcap the charge on the parts of the modules outside
-  the matrix was lost (efficiency 81% instead of 97% for muons). In the vertex barrel the results are
-  unchanged, apart from pixels below threshold beyond the sensor edge, which are no longer simulated.
-- Each pixel has its own threshold, smeared around `Threshold`, instead of a smeared threshold
-  accumulated from pixel to pixel along the cluster.
-- `CutOnDeltaRays` stays constant: the fluctuation model modified it in place for later segments,
-  hits and events.
-- Hits whose layer ID is not in `LayerIDs` are skipped before any geometry lookup.
-- The time discretisation of every instance uses its own `TimeDigitizeNumBits` and `TimeMaximum`
-  (they were shared by all instances in the job).
-- The z of the fired pixels is 0 instead of uninitialised.
-
-`MuonCVXDRealDigitiser`:
-- Layers are identified through `LayerIDs`: the geometry layer index was used as the cell ID layer,
-  which mixes up the geometry of the MAIA vertex barrel layers 4 and 6.
-- The cell IDs of the clusters are encoded with the `system` field of the geometry encoding.
-- Pixel clustering no longer reads outside the pixel matrix nor merges pixels across rows or across
-  the sensors of a ladder.
-- Layers without z segmentation (e.g. tracker barrels) use one sensor per ladder instead of dividing
-  by zero.
-- Hits and clusters without a surface are skipped.
-- Statistics: the cluster extents are computed correctly for single-hit clusters, the RD53A sensor
-  model fills the cluster size, and the BIB energy histogram has its own name.
+- `MuonCVXDRealDigitiser`: `StatisticsFilename` is replaced by `CreateStats` and the histogram sink;
+  `PoissonSmearing`, `ElectronicEffects`, `ElectronicNoise` and `StoreFiredPixels` are removed, as
+  they had no effect.
+- OpenMP is gone: parallelism comes from the Gaudi multithreaded event processing.
+- Random numbers are drawn per event, seeded from the event header, so the results do not depend on
+  the number of threads but differ hit by hit from those of Marlin.
 
 ## Package layout
 

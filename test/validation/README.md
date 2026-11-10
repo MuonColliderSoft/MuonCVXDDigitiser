@@ -76,6 +76,14 @@ With `--check` (the default), the analysis fails if the port and Marlin differ i
 without smearing, or if `revert_all` is not compatible with Marlin (efficiency, or KS test with
 p < 0.001 on the residuals, cluster size and charge).
 
+To validate against the Marlin processor of this repository's `master` instead, which already has the
+fixes, skip the variants and require the port itself to be compatible:
+
+```bash
+MARLIN_REPO=https://github.com/MuonColliderSoft/MuonCVXDDigitiser.git MARLIN_REF=master VARIANTS="" \
+ANALYSE_ARGS="--check --compatible port" test/validation/run_validation.sh
+```
+
 ## Results
 
 1000 events of 10 muons, 1–100 GeV, θ between 30° and 150°, on layer 0 of the vertex barrel
