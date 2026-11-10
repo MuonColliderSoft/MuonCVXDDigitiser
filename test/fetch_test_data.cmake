@@ -3,9 +3,11 @@
 #
 # cmake -DDEST=<dir> -DURL=<release download URL> [-DLOCAL_DIR=<dir>] -P fetch_test_data.cmake
 
+# Built with make_test_inputs.sh from the LCIO samples of the lcio-test-inputs release
 set(samples
-  "mu_gun_detailed.slcio=48ce8f8c6f65058866a74ac7f4ddc12cf9fb3487bf4bd84fa6eb5eb15f503d31"
-  "mu_gun_nodetail.slcio=126f992d2d4fe8f3a018d78bb7f0decd72525d43cebebd294438df9bf9ff161e"
+  "mu_gun_detailed.edm4hep.root=b21dca6a38fd924bc8d1822f84af515a11f0db020b8b817a9041ae0415559eb6"
+  "mu_gun_nodetail.edm4hep.root=82b01a89da85c3991e45985ee116d6f2fd3bd02e4cb54434626cace20c12562c"
+  "mu_gun_scaled.edm4hep.root=d24627d5b88709793aaa06ce5ac99f5c2ff94df13088ad2ec3c4e1e14b6f741d"
 )
 
 file(MAKE_DIRECTORY ${DEST})

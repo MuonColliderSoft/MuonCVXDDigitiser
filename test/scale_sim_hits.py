@@ -20,7 +20,7 @@ parser.add_argument("--edep", type=float, default=1.)
 parser.add_argument("--path-length", type=float, default=1.)
 args = parser.parse_args()
 
-sim_collections = {collection for _, _, collection, _, _ in SUBDETECTORS}
+sim_collections = {collection for _, _, collection, _ in SUBDETECTORS}
 factory = IOIMPL.LCFactory.getInstance()
 reader, writer = factory.createLCReader(), factory.createLCWriter()
 writer.open(args.output, EVENT.LCIO.WRITE_NEW)

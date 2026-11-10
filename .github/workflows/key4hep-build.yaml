@@ -96,11 +96,20 @@ jobs:
           # The base branch is built without -Werror: it may predate the warning fixes.
           # compare_to_base.sh exits with 0 if the outputs are identical, 3 if they differ, and
           # with any other code if building, digitising or comparing failed.
+          # A base branch from before the Gaudi port has Marlin processors, which cannot run on the
+          # EDM4hep samples: there is nothing to compare with
+          if [ ! -d base/MuonCVXDDigitiser/components ]; then
+            message="$base predates the port to Gaudi: the comparison is skipped."
+            echo "::notice title=No comparison with $base::$message"
+            echo -e "\n**$message**" >> summary.md
+            cat summary.md >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
           status=0
           { cmake -S base -B build_base -G Ninja -DCMAKE_CXX_STANDARD=${CXX_STANDARD} -DBUILD_TESTING=OFF > /dev/null &&
             ninja -C build_base > /dev/null &&
-            bash head/test/compare_to_base.sh build_base/lib/libMuonCVXDDigitiser.so build/lib/libMuonCVXDDigitiser.so \
-                 build/test/data/mu_gun_detailed.slcio compare summary.md; } || status=$?
+            bash head/test/compare_to_base.sh build_base/run build/run \
+                 build/test/data/mu_gun_detailed.edm4hep.root compare summary.md; } || status=$?
           case "$status:$CHANGES_OUTPUT" in
             0:true)
               message="The output is identical to $base, but the PR has the changes-output label: remove it if the PR no longer changes the output."
@@ -135,6 +144,7 @@ jobs:
           path: |
             build/test/out/*.csv
             build/test/out/*.log
+            build/test/out/*.py
             build/Testing/Temporary/LastTest.log
             compare/*.csv
             compare/*.log
