@@ -1,23 +1,23 @@
 """Definitions shared by the test scripts."""
 
-# prefix of the output collections, SubDetectorName, SimTrackerHit collection,
-# LayerIDs for MAIA_v0, name of the fired-pixel collection written by the processor
+# prefix of the output collections, SubDetectorName, SimTrackerHit collection, LayerIDs for MAIA_v0.
+# The outputs of a digitiser are <prefix>Hits, <prefix>HitsRelations (links to the SimTrackerHits),
+# and with StoreFiredPixels <prefix>Pixels and <prefix>RawHitRelations (links to the fired pixels).
 SUBDETECTORS = [
-    ("VXDBarrel", "VertexBarrel", "VertexBarrelCollection", [0, 1, 2, 4, 6], "VBPixels"),
-    ("VXDEndcap", "VertexEndcap", "VertexEndcapCollection", [0, 1, 2, 3, 4, 5, 6, 7], "VEPixels"),
-    ("ITBarrel", "InnerTrackerBarrel", "InnerTrackerBarrelCollection", [0, 1, 2], "IBPixels"),
-    ("ITEndcap", "InnerTrackerEndcap", "InnerTrackerEndcapCollection", [0, 1, 2, 3, 4, 5, 6], "IEPixels"),
-    ("OTBarrel", "OuterTrackerBarrel", "OuterTrackerBarrelCollection", [0, 1, 2], "OBPixels"),
-    ("OTEndcap", "OuterTrackerEndcap", "OuterTrackerEndcapCollection", [0, 1, 2, 3], "OEPixels"),
+    ("VXDBarrel", "VertexBarrel", "VertexBarrelCollection", [0, 1, 2, 4, 6]),
+    ("VXDEndcap", "VertexEndcap", "VertexEndcapCollection", [0, 1, 2, 3, 4, 5, 6, 7]),
+    ("ITBarrel", "InnerTrackerBarrel", "InnerTrackerBarrelCollection", [0, 1, 2]),
+    ("ITEndcap", "InnerTrackerEndcap", "InnerTrackerEndcapCollection", [0, 1, 2, 3, 4, 5, 6]),
+    ("OTBarrel", "OuterTrackerBarrel", "OuterTrackerBarrelCollection", [0, 1, 2]),
+    ("OTEndcap", "OuterTrackerEndcap", "OuterTrackerEndcapCollection", [0, 1, 2, 3]),
 ]
 
-# Smearing switched off: the remaining randomness is the energy-loss fluctuations.
-# TimeSmearingSigma = 0 switches time smearing off before TimeSmearingModel exists.
-NOSMEAR = {"PoissonSmearing": 0, "ElectronicEffects": 0, "ThresholdSmearSigma": 0,
+# Smearing switched off: the remaining randomness is the energy-loss fluctuations
+NOSMEAR = {"PoissonSmearing": False, "ElectronicEffects": False, "ThresholdSmearSigma": 0,
            "TimeSmearingSigma": 0, "TimeSmearingModel": 0}
 
-# Processor parameters of each test configuration. Parameters a version of the processor does
-# not know are ignored by Marlin, so a configuration can be defined before its feature exists.
+# Algorithm properties of each test configuration. Gaudi rejects properties an algorithm does not
+# have: MuonCVXDRealDigitiser only runs configurations without MuonCVXDDigitiser-specific ones.
 CONFIGS = {
     "default": {},
     "nosmear": NOSMEAR,
@@ -30,11 +30,11 @@ CONFIGS = {
     # which must give the same hits as the constant model with a 0.1 ns sigma
     "timing_overrides": {"TimeSmearingModel": 2, "TRise": 1.0, "SigmaLandau": 0, "SigmaJitter": 0,
                          "SigmaTDC": 0, "SigmaClock": 0},
-    "timing_sigma100": {"TimeSmearingSigma": 0.1},
+    "timing_sigma100": {"TimeSmearingModel": 1, "TimeSmearingSigma": 0.1},
     # Ionisation trail re-simulated from the local direction and EnergyLoss, not from Geant4
-    "resim": {**NOSMEAR, "ResimulateIonisation": 1},
-    "ms": {**NOSMEAR, "DoMultipleScattering": 1},
-    "ms_resim": {**NOSMEAR, "DoMultipleScattering": 1, "ResimulateIonisation": 1},
+    "resim": {**NOSMEAR, "ResimulateIonisation": True},
+    "ms": {**NOSMEAR, "DoMultipleScattering": True},
+    "ms_resim": {**NOSMEAR, "DoMultipleScattering": True, "ResimulateIonisation": True},
 }
 
 HIT_COLUMNS = ["subdet", "event", "cellID", "sim_x", "sim_y", "sim_z", "sim_t", "sim_edep", "px", "py", "pz",

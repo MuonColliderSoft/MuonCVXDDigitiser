@@ -469,6 +469,7 @@ INPUT                  = $(DOX_INPUT)
 # *.hpp *.h++ *.idl *.odl *.cs *.php *.php3 *.inc *.m *.mm *.py
 
 FILE_PATTERNS          = *.h \
+                         *.cpp \
                          *.cc
 
 # The RECURSIVE tag can be used to turn specify whether or not subdirectories 

@@ -1,6 +1,5 @@
 ########################################################
-# cmake file for building Marlin example documentation
-# @author Jan Engels, DESY
+# cmake file for building MuonCVXDDigitiser documentation
 ########################################################
 
 
@@ -13,7 +12,7 @@ IF( DOXYGEN_FOUND )
     SET( DOC_BIN_DIR "${PROJECT_BINARY_DIR}/docbuild" )
     
     # directories to search for documentation
-    SET( DOX_INPUT ../include ../src )
+    SET( DOX_INPUT ../MuonCVXDDigitiser/include ../MuonCVXDDigitiser/src ../MuonCVXDDigitiser/components )
 
 
     # custom command to build documentation
@@ -26,7 +25,7 @@ IF( DOXYGEN_FOUND )
                 "${DOXYGEN_EXECUTABLE}"
         WORKING_DIRECTORY "${DOC_SRC_DIR}"
         COMMENT "Building API Documentation..."
-        DEPENDS Doxyfile CMakeLists.txt ../include/* ../src/*
+        DEPENDS Doxyfile CMakeLists.txt
     )
 
     # add doc target
@@ -51,11 +50,6 @@ IF( INSTALL_DOC )
         # --- in-source installations ---
         SET( DOC_INSTALL_PREFIX doc )
 
-        # keep source tree clean
-        ADD_CUSTOM_TARGET( uninstall_doc
-            COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_INSTALL_PREFIX}/doc/html"
-        )
-        ADD_DEPENDENCIES( uninstall uninstall_doc )
     ELSE()
         # --- out-of-source installations ---
         SET( DOC_INSTALL_PREFIX doc/${PROJECT_NAME} )
