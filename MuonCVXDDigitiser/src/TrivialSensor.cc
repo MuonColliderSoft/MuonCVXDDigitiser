@@ -200,8 +200,7 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
                     PixelData p_data = GetPixel(global_row, global_col);
                     digiHit.charge += p_data.charge;
 
-                    LinearPosition lin_pos = l_locate(global_row, global_col);
-                    fillInHitRelation(digiHit.sim_hits, lin_pos);
+                    fillInHitRelation(digiHit.sim_hits, l_locate(global_row, global_col));
                     digiHit.pixel_hits[gcoor] = p_data;
                 }
 
