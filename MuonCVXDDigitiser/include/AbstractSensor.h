@@ -37,23 +37,6 @@ struct PixelData
     PixelStatus status;
 };
 
-/// SimTrackerHits contributing to a cluster, keyed on their index in the input collection
-/// so that the iteration order does not depend on memory addresses
-using SimHitSet = std::map<int, edm4hep::SimTrackerHit>;
-
-struct SegmentDigiHit
-{
-    float x;
-    float y;
-    float charge;
-    float time;
-    std::uint64_t cellID;
-    int size;
-    SimHitSet sim_hits;
-};
-
-using SegmentDigiHitList = vector<SegmentDigiHit>;
-
 struct GridCoordinate
 {
     int row;
@@ -64,6 +47,33 @@ static inline bool operator==(GridCoordinate a, GridCoordinate b)
 {
     return a.row == b.row && a.col == b.col;
 }
+
+static inline bool operator<(GridCoordinate a, GridCoordinate b)
+{
+    return a.row < b.row || (a.row == b.row && a.col < b.col);
+}
+
+/// SimTrackerHits contributing to a cluster, keyed on their index in the input collection
+/// so that the iteration order does not depend on memory addresses
+using SimHitSet = std::map<int, edm4hep::SimTrackerHit>;
+
+/// Pixel hits contributing to a cluster, keyed on their grid coordinate
+using PixelHitSet = std::map<GridCoordinate, PixelData>;
+
+// A cluster is made of pixel hits produced by a set of sim hits
+struct SegmentDigiHit
+{
+    float x;
+    float y;
+    float charge;
+    float time;
+    std::uint64_t cellID;
+    int size;
+    SimHitSet sim_hits;
+    PixelHitSet pixel_hits;
+};
+
+using SegmentDigiHitList = vector<SegmentDigiHit>;
 
 using LinearPosition = int;
 

@@ -49,6 +49,7 @@ digitisers = [
         RelationColName=[prefix + "HitsRelations"],
         RawHitsLinkColName=[prefix + "RawHitRelations"],
         OutputLevel=INFO,
+        StoreFiredPixels=True,
     )
     for name, subdet, input_collection, prefix, layer_ids in subdetectors
 ]

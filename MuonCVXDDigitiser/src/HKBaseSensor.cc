@@ -274,6 +274,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                     c_item.time,
                     sensorCellID,
                     static_cast<int>(c_item.pixels.size()),
+                    {},
                     {}
                 };
 
@@ -287,7 +288,10 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
                     digiHit.charge += c_point.charge;
 
-                    fillInHitRelation(digiHit.sim_hits, l_locate(global_row, global_col));
+                    LinearPosition lin_pos = l_locate(global_row, global_col);
+                    digiHit.pixel_hits[{c_point.row, c_point.col}] = GetPixel(global_row, global_col);
+
+                    fillInHitRelation(digiHit.sim_hits, lin_pos);
                 }
 
                 digiHit.x /= c_item.pixels.size();

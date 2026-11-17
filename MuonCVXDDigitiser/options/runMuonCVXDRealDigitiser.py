@@ -42,7 +42,10 @@ digitiser = MuonCVXDRealDigitiser(
     EventHeader=["EventHeader"],
     OutputCollectionName=["VXDBarrelRealHits"],
     RelationColName=["VXDBarrelRealHitsRelations"],
+    SimHitLocCollectionName=["VXDBarrelRealPixels"],
+    RawHitsLinkColName=["VXDBarrelRealRawHitRelations"],
     OutputLevel=INFO,
+    StoreFiredPixels=True,
 )
 
 extSvc = [UniqueIDGenSvc("UniqueIDGenSvc"), MessageSvcSink()]
