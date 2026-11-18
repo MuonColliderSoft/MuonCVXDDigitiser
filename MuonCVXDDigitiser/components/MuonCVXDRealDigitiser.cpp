@@ -319,17 +319,14 @@ MuonCVXDRealDigitiser::operator()(const edm4hep::SimTrackerHitCollection& STHcol
                         std::vector<edm4hep::MutableSimTrackerHit> rawHits;
                         for (const auto& [grid_coordinate, pixel_data] : digiHit.pixel_hits)
                         {
-                            if (pixel_data.status == PixelStatus::on)
-                            {
-                                auto newsth = STHLocCol.create();
-                                // hit's layer/ladder position is the same for all fired points
-                                newsth.setCellID(digiHit.cellID);
-                                //Store local position in units of pixels instead
-                                newsth.setPosition({grid_coordinate.row / 1.0, grid_coordinate.col / 1.0, 0.});
-                                newsth.setEDep(pixel_data.charge); // in unit of electrons
-                                newsth.setTime(pixel_data.time);
-                                rawHits.push_back(newsth);
-                            }
+                            auto newsth = STHLocCol.create();
+                            // hit's layer/ladder position is the same for all fired points
+                            newsth.setCellID(digiHit.cellID);
+                            //Store local position in units of pixels instead
+                            newsth.setPosition({grid_coordinate.row / 1.0, grid_coordinate.col / 1.0, 0.});
+                            newsth.setEDep(pixel_data.charge); // in unit of electrons
+                            newsth.setTime(pixel_data.time);
+                            rawHits.push_back(newsth);
                         }
                         for (const auto& rawHit : rawHits)
                         {
