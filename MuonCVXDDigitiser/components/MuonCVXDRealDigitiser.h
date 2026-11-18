@@ -45,7 +45,9 @@
  * All the parameters are documented in the property declarations below.
  */
 struct MuonCVXDRealDigitiser final
-    : k4FWCore::MultiTransformer<std::tuple<edm4hep::TrackerHitPlaneCollection,
+    : k4FWCore::MultiTransformer<std::tuple<edm4hep::SimTrackerHitCollection,
+                                            edm4hep::TrackerHitPlaneCollection,
+                                            edm4hep::TrackerHitSimTrackerHitLinkCollection,
                                             edm4hep::TrackerHitSimTrackerHitLinkCollection>(
           const edm4hep::SimTrackerHitCollection&, const edm4hep::EventHeaderCollection&)>
 {
@@ -53,7 +55,10 @@ struct MuonCVXDRealDigitiser final
 
     StatusCode initialize() override;
 
-    std::tuple<edm4hep::TrackerHitPlaneCollection, edm4hep::TrackerHitSimTrackerHitLinkCollection>
+    std::tuple<edm4hep::SimTrackerHitCollection,
+               edm4hep::TrackerHitPlaneCollection,
+               edm4hep::TrackerHitSimTrackerHitLinkCollection,
+               edm4hep::TrackerHitSimTrackerHitLinkCollection>
     operator()(const edm4hep::SimTrackerHitCollection& simTrackerHits,
                const edm4hep::EventHeaderCollection& headers) const override;
 
@@ -93,6 +98,7 @@ private:
     Gaudi::Property<int> m_zSegmented{this, "ZSegmented", -1,
         "Segmentation of the ladders along z into their sensors: -1 = auto (on when the ladders have more than one sensor, as all the MAIA barrels), 0 = off, 1 = on."};
     Gaudi::Property<bool> m_create_stats{this, "CreateStats", false, "Fill cluster statistics histograms"};
+    Gaudi::Property<bool> m_produceFullPattern{this, "StoreFiredPixels", false, "Store fired pixels"};
 
     SmartIF<IGeoSvc> m_geoSvc;
     SmartIF<IUniqueIDGenSvc> m_uidSvc;

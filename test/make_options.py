@@ -59,13 +59,10 @@ for prefix, subdet, collection, layer_ids in subdets:
         "EventHeader": ["EventHeader"],
         "OutputCollectionName": [prefix + "Hits"],
         "RelationColName": [prefix + "HitsRelations"],
+        "SimHitLocCollectionName": [prefix + "Pixels"],
+        "RawHitsLinkColName": [prefix + "RawHitRelations"],
+        "StoreFiredPixels": True
     }
-    if args.algorithm == "MuonCVXDDigitiser":
-        properties.update({
-            "SimHitLocCollectionName": [prefix + "Pixels"],
-            "RawHitsLinkColName": [prefix + "RawHitRelations"],
-            "StoreFiredPixels": True,
-        })
     properties.update({**CONFIGS[args.config], **common, **own.get(prefix, {})})
     body = "".join(f"    {k}={v!r},\n" for k, v in properties.items())
     algorithms.append(f"{args.algorithm}(\n    {prefix + 'Digitiser'!r},\n{body})")

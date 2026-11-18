@@ -9,6 +9,8 @@
 #include "DD4hep/Detector.h"
 #include "DDRec/Surface.h"
 
+#include "edm4hep/MutableSimTrackerHit.h"
+
 #include "DetElemSlidingWindow.h"
 #include "EventRandom.h"
 #include "HKBaseSensor.h"
@@ -26,8 +28,10 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser(const std::string& name, ISvcLocato
     MultiTransformer(name, svcLoc,
                      {KeyValues("CollectionName", {"VertexBarrelCollection"}),
                       KeyValues("EventHeader", {"EventHeader"})},
-                     {KeyValues("OutputCollectionName", {"VTXTrackerHits"}),
-                      KeyValues("RelationColName", {"VTXTrackerHitRelations"})})
+                     {KeyValues("SimHitLocCollectionName", {"VertexBarrelPixels"}),
+                      KeyValues("OutputCollectionName", {"VTXTrackerHits"}),
+                      KeyValues("RelationColName", {"VTXTrackerHitRelations"}),
+                      KeyValues("RawHitsLinkColName", {"VTXRawHitRelations"})})
 {}
 
 StatusCode MuonCVXDRealDigitiser::initialize()
@@ -97,19 +101,24 @@ StatusCode MuonCVXDRealDigitiser::initialize()
     return StatusCode::SUCCESS;
 }
 
-std::tuple<edm4hep::TrackerHitPlaneCollection, edm4hep::TrackerHitSimTrackerHitLinkCollection>
+std::tuple<edm4hep::SimTrackerHitCollection,
+           edm4hep::TrackerHitPlaneCollection,
+           edm4hep::TrackerHitSimTrackerHitLinkCollection,
+           edm4hep::TrackerHitSimTrackerHitLinkCollection>
 MuonCVXDRealDigitiser::operator()(const edm4hep::SimTrackerHitCollection& STHcol,
                                   const edm4hep::EventHeaderCollection& headers) const
 {
+    edm4hep::SimTrackerHitCollection STHLocCol;
     edm4hep::TrackerHitPlaneCollection THcol;
     edm4hep::TrackerHitSimTrackerHitLinkCollection relCol;
+    edm4hep::TrackerHitSimTrackerHitLinkCollection rawHitsCol;
 
     m_nSimHits += STHcol.size();
     if (STHcol.empty())
     {
         m_nRecoHits += 0;
         debug() << "Number of produced hits: " << THcol.size() << endmsg;
-        return std::make_tuple(std::move(THcol), std::move(relCol));
+        return std::make_tuple(std::move(STHLocCol), std::move(THcol), std::move(relCol), std::move(rawHitsCol));
     }
 
     const auto seed = m_uidSvc->getUniqueID(headers, name());
@@ -304,6 +313,38 @@ MuonCVXDRealDigitiser::operator()(const edm4hep::SimTrackerHitCollection& STHcol
                         }
                     }
 
+                    if (m_produceFullPattern)
+                    {
+                        // Store all the fired points
+                        std::vector<edm4hep::MutableSimTrackerHit> rawHits;
+                        for (const auto& [grid_coordinate, pixel_data] : digiHit.pixel_hits)
+                        {
+                            auto newsth = STHLocCol.create();
+                            // hit's layer/ladder position is the same for all fired points
+                            newsth.setCellID(digiHit.cellID);
+                            //Store local position in units of pixels instead
+                            newsth.setPosition({grid_coordinate.row / 1.0, grid_coordinate.col / 1.0, 0.});
+                            newsth.setEDep(pixel_data.charge); // in unit of electrons
+                            newsth.setTime(pixel_data.time);
+                            rawHits.push_back(newsth);
+                        }
+                        for (const auto& rawHit : rawHits)
+                        {
+                            auto rawLink = rawHitsCol.create();
+                            rawLink.setFrom(recoHit);
+                            rawLink.setTo(rawHit);
+                            rawLink.setWeight(1. / rawHits.size());
+                        }
+                        if (msgLevel(MSG::VERBOSE))
+                        {
+                            verbose() << "- number of pixels: " << rawHits.size() << "\n"
+                                    << "- List of constituents (pixels/strips):\n";
+                            for (size_t iH = 0; iH < rawHits.size(); ++iH)
+                                verbose() << "  - " << iH << ": Edep (e-) = " << rawHits[iH].getEDep() << ", t (ns) =" << rawHits[iH].getTime() << "\n";
+                            verbose() << "--------------------------------" << endmsg;
+                        }
+                    }
+
                     if (msgLevel(MSG::VERBOSE))
                     {
                         const auto& recoPos = recoHit.getPosition();
@@ -337,7 +378,7 @@ MuonCVXDRealDigitiser::operator()(const edm4hep::SimTrackerHitCollection& STHcol
         debug() << "> " << THcol.size() - count << endmsg;
     }
 
-    return std::make_tuple(std::move(THcol), std::move(relCol));
+    return std::make_tuple(std::move(STHLocCol), std::move(THcol), std::move(relCol), std::move(rawHitsCol));
 }
 
 void MuonCVXDRealDigitiser::PrintGeometryInfo() const

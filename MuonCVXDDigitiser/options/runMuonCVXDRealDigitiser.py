@@ -32,18 +32,31 @@ iosvc = IOSvc()
 iosvc.Input = "sim.edm4hep.root"
 iosvc.Output = "digi_real.edm4hep.root"
 
-digitiser = MuonCVXDRealDigitiser(
-    "VXDBarrelRealDigitiser",
-    SubDetectorName="VertexBarrel",
-    LayerIDs=[0, 1, 2, 4, 6],
-    SensorType=args.sensor_type,
-    CreateStats=bool(args.stats_file),
-    CollectionName=["VertexBarrelCollection"],
-    EventHeader=["EventHeader"],
-    OutputCollectionName=["VXDBarrelRealHits"],
-    RelationColName=["VXDBarrelRealHitsRelations"],
-    OutputLevel=INFO,
-)
+# name, SubDetectorName, input collection, output prefix, LayerIDs. Endcap not supported yet. All using VTX pixel pitch. (? and maybe also in MuonCVXDigitiser?)
+subdetectors = [
+    ("VXDBarrelDigitiser", "VertexBarrel", "VertexBarrelCollection", "VXDBarrel", [0, 1, 2, 4, 6]),
+    ("ITBarrelDigitiser", "InnerTrackerBarrel", "InnerTrackerBarrelCollection", "ITBarrel", [0, 1, 2]),
+    ("OTBarrelDigitiser", "OuterTrackerBarrel", "OuterTrackerBarrelCollection", "OTBarrel", [0, 1, 2]),
+]
+
+digitisers = [
+    MuonCVXDRealDigitiser(
+        name,
+        SubDetectorName=subdet,
+        LayerIDs=layer_ids,
+        CollectionName=[input_collection],
+        SensorType=args.sensor_type,
+        CreateStats=bool(args.stats_file),
+        EventHeader=["EventHeader"],
+        SimHitLocCollectionName=[prefix + "RealPixels"],
+        OutputCollectionName=[prefix + "RealHits"],
+        RelationColName=[prefix + "RealHitsRelations"],
+        RawHitsLinkColName=[prefix + "RealRawHitRelations"],
+        OutputLevel=INFO,
+        StoreFiredPixels=False,
+    )
+    for name, subdet, input_collection, prefix, layer_ids in subdetectors
+]
 
 extSvc = [UniqueIDGenSvc("UniqueIDGenSvc"), MessageSvcSink()]
 if args.stats_file:
@@ -61,7 +74,7 @@ else:
     extSvc.append(EventDataSvc("EventDataSvc"))
 
 ApplicationMgr(
-    TopAlg=[digitiser],
+    TopAlg=digitisers,
     EvtSel="NONE",
     EvtMax=-1,
     ExtSvc=extSvc,
