@@ -185,7 +185,7 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
                     0., 0., 0.,
                     init_time + clock_cnt * clock_step,
                     sensorCellID,
-                    0,
+                    static_cast<int>(c_item.size()),
                     {},
                     {}
                 };
@@ -200,14 +200,12 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
                     PixelData p_data = GetPixel(global_row, global_col);
                     digiHit.charge += p_data.charge;
 
-                    fillInHitRelation(digiHit.sim_hits, l_locate(global_row, global_col));
                     digiHit.pixel_hits[gcoor] = p_data;
+                    fillInHitRelation(digiHit.sim_hits, l_locate(global_row, global_col));
                 }
 
                 digiHit.x /= c_item.size();
                 digiHit.y /= c_item.size();
-
-                digiHit.size = c_item.size();
 
                 output.push_back(std::move(digiHit));
             }
